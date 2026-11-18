@@ -21,8 +21,8 @@ type ProviderState = {
 export const useProvider = create<ProviderState>(() => ({
   name: 'DeepSeek',
   models: [],
-  selectedModel: 'deepseek-flash',
-  capabilities: { thinking: true, search: true, attachments: true, speech: true },
+  selectedModel: '',
+  capabilities: { thinking: false, search: false, attachments: false, speech: false },
   loaded: false,
   error: null,
 }))
@@ -36,6 +36,7 @@ export const loadProvider = (force = false) => {
   if (!force && useProvider.getState().loaded) {
     return Promise.resolve()
   }
+  useProvider.setState({ loaded: false, error: null })
   loading = api<{
     name: string
     models: string[]

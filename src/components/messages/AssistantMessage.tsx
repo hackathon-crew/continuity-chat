@@ -22,6 +22,8 @@ import {
   type MessageVersions,
   type SelectMessageVersion,
 } from './BranchSwitcher.js'
+import { AgentOrb } from '../platform/AgentOrb.js'
+import { useProvider } from '../../services/provider.js'
 import styles from './AssistantMessage.module.css'
 
 const TOP_UP_URL = 'https://platform.deepseek.com/top_up'
@@ -46,6 +48,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   const t = useTranslate()
   const view = useReplyView(message, streaming)
   const panelEntry = useSearchPanel((state) => state.entry)
+  const speechSupported = useProvider((state) => state.capabilities.speech)
   const notice = streaming ? null : describeReply(message)
   // 安全拒绝：已下发的思考与正文按协议丢弃，只显示模板答复。
   const refused = message.stopReason === 'refusal'
@@ -57,7 +60,13 @@ export const AssistantMessage = memo(function AssistantMessage({
   const waiting = streaming && view.steps.length === 0 && !view.answer && !message.thinking
   const summaryEntry = `${message.id}-summary`
   return (
-    <div className={styles.message}>
+    <div className={clsx(styles.message, message.personalAgent && styles.personalAgent)}>
+      {message.personalAgent ? (
+        <div className={styles.agentBadge}>
+          <AgentOrb size="small" active /> <strong>Personal Agent</strong>
+          <span>独立执行</span>
+        </div>
+      ) : null}
       {refused ? null : (
         <ReplyArea
           message={message}
@@ -80,6 +89,21 @@ export const AssistantMessage = memo(function AssistantMessage({
         <div className={styles.waiting}>
           {[0, 1, 2].map((index) => (
             <span key={index} className={styles.waitingDot} />
+          ))}
+        </div>
+      ) : null}
+      {message.toolTrace?.length ? (
+        <div className={styles.agentTrace}>
+          <span>已完成 {message.toolTrace.length} 次工具调用</span>
+          {message.toolTrace.map((trace, index) => (
+            <details key={`${trace.name}-${index}`}>
+              <summary>{trace.name}</summary>
+              <pre>
+                {JSON.stringify(trace.input, null, 2)}
+                {'\n\n'}
+                {trace.output}
+              </pre>
+            </details>
           ))}
         </div>
       ) : null}
@@ -139,7 +163,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           <BranchSwitcher versions={versions} disabled={busy} onSelect={onSelectVersion} />
           <div className={clsx(styles.actions, isLast && styles.alwaysShow)}>
             {copyText ? <CopyButton text={copyText} /> : null}
-            {responseText && !refused ? (
+            {responseText && !refused && speechSupported ? (
               <ReadAloudButton messageId={message.id} text={responseText} />
             ) : null}
             <IconButton

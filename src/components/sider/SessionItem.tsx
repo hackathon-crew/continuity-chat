@@ -13,10 +13,12 @@ export const SessionItem = memo(function SessionItem({
   session,
   active,
   onDelete,
+  onSelect,
 }: {
   session: SessionSummary
   active: boolean
   onDelete: () => void
+  onSelect?: () => void
 }) {
   const t = useTranslate()
   const [editing, setEditing] = useState(false)
@@ -52,6 +54,7 @@ export const SessionItem = memo(function SessionItem({
       className={clsx(styles.item, active && styles.active)}
       onClick={() => {
         selectSession(session.id)
+        onSelect?.()
         closeMobileSider()
       }}
     >

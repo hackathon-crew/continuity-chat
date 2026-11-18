@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   IconGlobeLanguageOutline14,
   IconPaperclipOutline16,
@@ -33,6 +33,7 @@ import { VoiceButton } from './VoiceButton.js'
 import { Spectrum } from './Spectrum.js'
 import { useTranslate } from '../../i18n/index.js'
 import { selectProviderModel, useProvider } from '../../services/provider.js'
+import { AgentOrb } from '../platform/AgentOrb.js'
 import styles from './ChatInput.module.css'
 
 /** 输入框：自适应高度的文本框 + 文件 + 深度思考与智能搜索开关 + 语音输入 + 发送 / 停止 */
@@ -57,6 +58,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const models = useProvider((state) => state.models)
   const selectedModel = useProvider((state) => state.selectedModel)
   const capabilities = useProvider((state) => state.capabilities)
+  const providerLoaded = useProvider((state) => state.loaded)
+  const [agentMode, setAgentMode] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const togglesRef = useRef<HTMLDivElement>(null)
@@ -76,7 +79,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     const observer = new ResizeObserver(updateLabels)
     observer.observe(toggles)
     return () => observer.disconnect()
-  }, [t])
+  }, [t, agentMode, capabilities])
 
   const acceptFiles = (files: File[]) => {
     if (
@@ -139,7 +142,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const recording = voice.status === 'recording'
 
   // 排队、上传中或上传失败的附件都留在输入框，全部上传成功后才能发送
-  const canSend = !importingHistory && !streaming && voice.status === 'idle' && draftReady
+  const canSend =
+    providerLoaded && !importingHistory && !streaming && voice.status === 'idle' && draftReady
 
   const send = () => {
     if (
@@ -150,7 +154,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       return
     }
     // 文本与上传完成态由提交动作读取最新快照，不使用上一次渲染的草稿。
-    if (!ensureApiKey() || !sendMessage(sessionId)) {
+    if (!ensureApiKey() || !sendMessage(sessionId, { personalAgent: agentMode })) {
       return
     }
     stopReadAloud()
@@ -175,7 +179,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
         <textarea
           ref={textareaRef}
           className={clsx(styles.textarea, recording && isMobile && styles.textareaHidden)}
-          placeholder={t('chatInputPlaceholderChat')}
+          placeholder={agentMode ? '交给 Personal Agent 一个任务…' : t('chatInputPlaceholderChat')}
           rows={2}
           // 移动端不自动聚焦，避免一打开就弹出键盘
           autoFocus={!isMobile}
@@ -214,15 +218,29 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
           <select
             className={styles.modelSelect}
             aria-label="选择模型"
+            disabled={!providerLoaded}
             value={selectedModel}
             onChange={(event) => void selectProviderModel(event.target.value)}
           >
-            {(models.length ? models : [selectedModel]).map((model) => (
+            {!providerLoaded ? <option value="">加载模型…</option> : null}
+            {(models.length ? models : [selectedModel]).filter(Boolean).map((model) => (
               <option key={model} value={model}>
                 {model}
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            className={clsx(styles.toggle, styles.agentToggle, agentMode && styles.selected)}
+            aria-label="Personal Agent 模式"
+            aria-pressed={agentMode}
+            disabled={!providerLoaded || attachments.length > 0}
+            title={attachments.length ? 'Agent 模式当前仅支持文本' : ''}
+            onClick={() => setAgentMode(!agentMode)}
+          >
+            <AgentOrb size="small" active={agentMode} />
+            <span className={styles.toggleLabel}>Agent</span>
+          </button>
           {capabilities.thinking ? (
             <Tooltip content={t('deactivatedThinkTooltip')}>
               <button

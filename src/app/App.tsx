@@ -27,7 +27,7 @@ import { CollapsedSider } from '../components/sider/CollapsedSider.js'
 import { closeMobileSider } from '../components/sider/mobileSiderState.js'
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import { AuthScreen } from '../components/platform/AuthScreen.js'
-import { WorkspaceNav, type WorkspaceView } from '../components/platform/WorkspaceNav.js'
+import type { WorkspaceView } from '../components/platform/workspaceView.js'
 import { AccountPage } from '../components/platform/AccountPage.js'
 import { CompanionStudio } from '../components/platform/CompanionStudio.js'
 import { AgentWorkspace } from '../components/platform/AgentWorkspace.js'
@@ -131,7 +131,7 @@ export const App = () => {
 
   const chatContent = (
     <div className={styles.content}>
-      {siderCollapsed ? <CollapsedSider /> : null}
+      {siderCollapsed ? <CollapsedSider onView={setView} /> : null}
       {!ready || (activeId !== null && !session) ? (
         <div className={styles.loadingView}>
           {isMobile ? <MobileHeader /> : null}
@@ -170,9 +170,12 @@ export const App = () => {
   return (
     <>
       <div ref={frameRef} className={styles.frame}>
-        {view === 'chat' ? isMobile ? <MobileSider /> : siderCollapsed ? null : <Sider /> : null}
+        {isMobile ? (
+          <MobileSider user={user} view={view} onView={setView} />
+        ) : siderCollapsed ? null : (
+          <Sider user={user} view={view} onView={setView} />
+        )}
         <main className={styles.main}>
-          <WorkspaceNav view={view} onView={setView} user={user} />
           {view === 'chat' && saveError ? (
             <div className={styles.saveError} role="alert">
               <span>{t('sessionSaveFailed')}</span>
@@ -189,21 +192,25 @@ export const App = () => {
           {view === 'chat' ? (
             chatContent
           ) : (
-            <div className={`${styles.content} ${styles.platformContent}`}>
-              {view === 'studio' ? <CompanionStudio /> : null}
-              {view === 'agent' ? <AgentWorkspace /> : null}
-              {view === 'tasks' ? <TasksPage /> : null}
-              {view === 'account' ? (
-                <AccountPage
-                  user={user}
-                  onUser={setUser}
-                  onLogout={() => {
-                    setUser(null)
-                    setView('chat')
-                  }}
-                />
-              ) : null}
-            </div>
+            <>
+              {siderCollapsed ? <CollapsedSider onView={setView} /> : null}
+              {isMobile && view !== 'agent' ? <MobileHeader /> : null}
+              <div className={`${styles.content} ${styles.platformContent}`}>
+                {view === 'studio' ? <CompanionStudio /> : null}
+                {view === 'agent' ? <AgentWorkspace onOpenTasks={() => setView('tasks')} /> : null}
+                {view === 'tasks' ? <TasksPage /> : null}
+                {view === 'account' ? (
+                  <AccountPage
+                    user={user}
+                    onUser={setUser}
+                    onLogout={() => {
+                      setUser(null)
+                      setView('chat')
+                    }}
+                  />
+                ) : null}
+              </div>
+            </>
           )}
         </main>
         {view === 'chat' ? <SearchPanel /> : null}

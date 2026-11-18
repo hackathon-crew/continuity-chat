@@ -5,7 +5,7 @@ import type { ChatModel, CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { useSettings } from '../settings.js'
-import { getCompanionPrompt } from '../platform.js'
+import { api, getCompanionPrompt, jsonBody } from '../platform.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
 import {
@@ -625,7 +625,10 @@ export const stopReply = (sessionId: string) => getStreamController(sessionId)?.
  * 提交指定会话的最新草稿；null 表示新建会话。
  * 同步接收成功才清空草稿，附件原件由会话接管；保存失败仍通过保存入口重试。
  */
-export const sendMessage = (targetSessionId: string | null) => {
+export const sendMessage = (
+  targetSessionId: string | null,
+  options?: { personalAgent?: boolean }
+) => {
   if (get().importingHistory || !get().ready) {
     return false
   }
@@ -679,6 +682,10 @@ export const sendMessage = (targetSessionId: string | null) => {
     createdAt: now,
   }
   const reply = createReply()
+  if (options?.personalAgent) {
+    reply.personalAgent = true
+    reply.prefix = false
+  }
   updateSession(sessionId, (session) => ({
     ...appendBranch(session, history.at(-1)?.id ?? null, [question, reply]),
     updatedAt: now,
@@ -691,7 +698,11 @@ export const sendMessage = (targetSessionId: string | null) => {
   }
   persist(sessionId)
   clearSentDraft(targetSessionId)
-  void streamReply(sessionId, reply, { history, question })
+  if (options?.personalAgent) {
+    void runPersonalAgentReply(sessionId, reply, question)
+  } else {
+    void streamReply(sessionId, reply, { history, question })
+  }
   return true
 }
 
@@ -1039,6 +1050,54 @@ const waitForRetry = (attempt: number, signal: AbortSignal) =>
  * 补传失败时回复记为 upload 错误，可重试。
  * 服务端判定 file_id 失效时重新补传后重发，退避重试且次数有上限，超过则按原始报错收尾。
  */
+const runPersonalAgentReply = async (
+  sessionId: string,
+  initial: AssistantMessage,
+  question: UserMessage
+) => {
+  const controller = new AbortController()
+  set((state) => ({ streaming: { ...state.streaming, [sessionId]: controller } }))
+  let reply = initial
+  try {
+    const result = await api<{
+      message: { content: string; trace?: AssistantMessage['toolTrace'] }
+    }>('/api/agent/run', {
+      method: 'POST',
+      body: jsonBody({ input: question.content }),
+      signal: controller.signal,
+    })
+    reply = {
+      ...reply,
+      status: 'done',
+      blocks: [{ type: 'text', text: result.message.content }],
+      toolTrace: result.message.trace,
+    }
+    updateSession(sessionId, (session) =>
+      session.title
+        ? session
+        : {
+            ...session,
+            title: question.content.replace(/\s+/g, ' ').trim().slice(0, 28) || 'Agent 任务',
+          }
+    )
+  } catch (error) {
+    reply = controller.signal.aborted
+      ? settleReply(reply, 'stopped', Date.now())
+      : settleReply(reply, 'error', Date.now(), {
+          kind: 'network',
+          message: error instanceof Error ? error.message : String(error),
+        })
+  } finally {
+    updateReply(sessionId, reply)
+    set((state) => ({
+      streaming: Object.fromEntries(
+        Object.entries(state.streaming).filter(([id]) => id !== sessionId)
+      ),
+    }))
+    persist(sessionId)
+  }
+}
+
 const streamReply = async (sessionId: string, initial: AssistantMessage, request: Request) => {
   const controller = new AbortController()
   if (!getSession(sessionId)?.title) {

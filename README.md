@@ -34,6 +34,19 @@ pnpm dev
 - 配置 `DEEPSEEK_API_KEY` 后，平台模式即可使用。
 - 聊天不设置应用层消息条数限制；上游模型的余额、可用性与服务条款仍然适用。
 
+## 使用 Unigate / OpenAI 兼容上游
+
+将以下配置放入本地 `.env`，密钥单独填写，不要提交：
+
+```sh
+DEEPSEEK_API_BASE=https://unigate.top/v1
+DEEPSEEK_API_KEY=你的上游密钥
+MODEL_API_FORMAT=openai
+MODEL_ID=gpt-5.6-sol
+```
+
+服务端会将现有 Anthropic 聊天协议转换为 OpenAI Chat Completions 与 SSE。聊天输入区和“账户与计费”页面均可手动切换模型，也可输入自定义模型 ID；普通聊天、主动消息、定时任务和 Personal Agent 共用当前选择。OpenAI 兼容文本模式下会停用上游未提供的原生附件、语音和搜索能力。
+
 ## 生产形态启动
 
 ```sh

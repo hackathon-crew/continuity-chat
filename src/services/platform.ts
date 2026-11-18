@@ -4,6 +4,7 @@ export type PlatformUser = {
   name: string
   createdAt: number
   keyMode: 'platform' | 'byok'
+  selectedModel: string
   hasStoredKey: boolean
 }
 

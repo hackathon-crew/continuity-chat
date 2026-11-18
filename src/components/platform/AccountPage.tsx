@@ -7,6 +7,7 @@ import {
   type PlatformUser,
 } from '../../services/platform.js'
 import { setApiKey } from '../../services/settings.js'
+import { loadProvider, selectProviderModel, useProvider } from '../../services/provider.js'
 import { Button } from '../base/Button.js'
 import styles from './Platform.module.css'
 
@@ -26,6 +27,11 @@ export const AccountPage = ({
   const [error, setError] = useState('')
   const [billing, setBilling] = useState<BillingData | null>(null)
   const [billingBusy, setBillingBusy] = useState('')
+  const providerName = useProvider((state) => state.name)
+  const models = useProvider((state) => state.models)
+  const selectedModel = useProvider((state) => state.selectedModel)
+  const [modelDraft, setModelDraft] = useState(selectedModel)
+  useEffect(() => setModelDraft(selectedModel), [selectedModel])
 
   const loadBilling = async () => {
     try {
@@ -50,6 +56,7 @@ export const AccountPage = ({
       onUser(result.user)
       setApiKey(mode === 'platform' ? 'platform' : key || 'stored')
       setKey('')
+      await loadProvider(true)
       setNotice(
         mode === 'platform'
           ? '已切换为平台 API Key，聊天不设置条数限制。'
@@ -151,7 +158,7 @@ export const AccountPage = ({
         </div>
         {mode === 'byok' ? (
           <div className={styles.field}>
-            <label htmlFor="own-key">DeepSeek API Key</label>
+            <label htmlFor="own-key">上游 API Key</label>
             <input
               id="own-key"
               className={styles.input}
@@ -169,6 +176,34 @@ export const AccountPage = ({
           onClick={() => void saveKey()}
         >
           {keyBusy ? '正在校验…' : '保存模型连接'}
+        </Button>
+        <div className={styles.field}>
+          <label htmlFor="model-id">当前模型 · {providerName}</label>
+          <input
+            id="model-id"
+            className={styles.input}
+            list="available-models"
+            value={modelDraft}
+            onChange={(event) => setModelDraft(event.target.value)}
+          />
+          <datalist id="available-models">
+            {models.map((model) => (
+              <option key={model} value={model} />
+            ))}
+          </datalist>
+          <span className={styles.status}>可从列表选择，也可输入上游新开放的模型 ID。</span>
+        </div>
+        <Button
+          variant="outlined"
+          size="m"
+          disabled={!modelDraft.trim() || modelDraft === selectedModel}
+          onClick={() => {
+            void selectProviderModel(modelDraft).catch((reason) =>
+              setError(reason instanceof Error ? reason.message : '模型切换失败')
+            )
+          }}
+        >
+          切换模型
         </Button>
       </section>
       <div className={styles.gridThree}>

@@ -80,5 +80,6 @@ export const publicUser = (user) => ({
   name: user.name,
   createdAt: user.createdAt,
   keyMode: user.keyMode,
+  selectedModel: user.selectedModel ?? config.defaultModel,
   hasStoredKey: Boolean(user.apiKeyEncrypted),
 })

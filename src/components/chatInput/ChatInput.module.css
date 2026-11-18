@@ -251,6 +251,26 @@
   min-width: 0;
 }
 
+.modelSelect {
+  flex-shrink: 1;
+  min-width: 112px;
+  max-width: 190px;
+  height: 34px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 10px;
+  outline: none;
+  color: var(--dsw-alias-label-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.modelSelect:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
 .collapsedToggles .toggleLabel {
   display: none;
 }

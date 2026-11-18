@@ -9,6 +9,10 @@ export const config = {
   dataDir: process.env.DATA_DIR ?? path.join(root, 'data'),
   deepseekApiBase: (process.env.DEEPSEEK_API_BASE ?? 'https://api.deepseek.com').replace(/\/$/, ''),
   deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? '',
+  modelApiFormat: process.env.MODEL_API_FORMAT ?? 'anthropic',
+  defaultModel:
+    process.env.MODEL_ID ??
+    (process.env.MODEL_API_FORMAT === 'openai' ? 'gpt-5.6-sol' : 'deepseek-flash'),
   appSecret: process.env.APP_SECRET ?? '',
   publicUrl: (
     process.env.PUBLIC_URL ?? `http://localhost:${Number(process.env.PORT ?? 3080)}`

@@ -11,6 +11,7 @@ import {
 } from '../services/chat/store.js'
 import { api, type PlatformUser } from '../services/platform.js'
 import { startProactiveDelivery } from '../services/proactive.js'
+import { loadProvider } from '../services/provider.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
 import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
@@ -77,6 +78,7 @@ export const App = () => {
       return
     }
     const currentKey = useSettings.getState().apiKey
+    void loadProvider(true)
     setApiKey(
       user.keyMode === 'platform'
         ? 'platform'

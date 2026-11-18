@@ -24,7 +24,7 @@ import {
   publicUser,
   verifyPassword,
 } from './security.js'
-import { proxyDeepseek, verifyDeepseekKey } from './model.js'
+import { listModels, proxyDeepseek, verifyDeepseekKey } from './model.js'
 import {
   billingSnapshot,
   changeCancellation,
@@ -203,6 +203,30 @@ async function apiRoute(req, res, store) {
   }
 
   const user = await requireUser(req, store)
+  if (pathname === '/api/provider' && method === 'GET') {
+    const models = await listModels(user)
+    return sendJson(res, 200, {
+      name: config.modelApiFormat === 'openai' ? 'Unigate' : 'DeepSeek',
+      apiFormat: config.modelApiFormat,
+      models,
+      selectedModel: user.selectedModel ?? config.defaultModel,
+      capabilities:
+        config.modelApiFormat === 'openai'
+          ? { thinking: false, search: false, attachments: false, speech: false }
+          : { thinking: true, search: true, attachments: true, speech: true },
+    })
+  }
+  if (pathname === '/api/provider/model' && method === 'PUT') {
+    const body = await readJson(req)
+    const selectedModel = text(body.model, 100)
+    if (!/^[\w.:@/-]+$/.test(selectedModel)) {
+      throw new HttpError(400, '模型 ID 格式无效')
+    }
+    await store.update((data) => {
+      data.users.find((item) => item.id === user.id).selectedModel = selectedModel
+    })
+    return sendJson(res, 200, { selectedModel })
+  }
   if (pathname.startsWith('/api/deepseek/')) {
     return proxyDeepseek(req, res, user)
   }

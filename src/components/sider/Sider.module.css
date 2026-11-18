@@ -74,6 +74,14 @@
   }
 }
 
+.migrationButton {
+  margin-top: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+}
+
 .newChatIcon {
   display: flex;
   margin-right: 6px;

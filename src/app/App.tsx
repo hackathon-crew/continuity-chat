@@ -1,20 +1,21 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslate } from '../i18n/index.js'
-import { useSettings } from '../services/settings.js'
+import { setApiKey, useSettings } from '../services/settings.js'
 import { useIsMobile, useMobileViewport, usePreventPageScroll } from './viewport.js'
 import {
   bindChatPersistence,
-  initChat,
   retrySaveSessions,
   selectSession,
+  switchChatOwner,
   useChatStore,
 } from '../services/chat/store.js'
+import { api, type PlatformUser } from '../services/platform.js'
+import { startProactiveDelivery } from '../services/proactive.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
 import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
 import { Welcome } from '../components/session/Welcome.js'
-import { ensureApiKey } from '../components/settings/settingsDialogState.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { Toast } from '../components/base/Toast.js'
 import { showToast } from '../components/base/toastState.js'
@@ -24,14 +25,23 @@ import { stopReadAloud } from '../services/speech/readAloud.js'
 import { CollapsedSider } from '../components/sider/CollapsedSider.js'
 import { closeMobileSider } from '../components/sider/mobileSiderState.js'
 import { MobileSider, Sider } from '../components/sider/Sider.js'
+import { AuthScreen } from '../components/platform/AuthScreen.js'
+import { WorkspaceNav, type WorkspaceView } from '../components/platform/WorkspaceNav.js'
+import { AccountPage } from '../components/platform/AccountPage.js'
+import { CompanionStudio } from '../components/platform/CompanionStudio.js'
+import { AgentWorkspace } from '../components/platform/AgentWorkspace.js'
+import { TasksPage } from '../components/platform/TasksPage.js'
+import { MigrationDialog, openMigration } from '../components/platform/MigrationDialog.js'
+import platformStyles from '../components/platform/Platform.module.css'
 import styles from './App.module.css'
 
 export const App = () => {
   const t = useTranslate()
   const isMobile = useIsMobile()
   const locale = useSettings((state) => state.locale)
-  // 移动端侧边栏以独立抽屉管理开合状态
   const siderCollapsed = useSettings((state) => state.siderCollapsed) && !isMobile
+  const [user, setUser] = useState<PlatformUser | null | undefined>(undefined)
+  const [view, setView] = useState<WorkspaceView>('chat')
   const ready = useChatStore((state) => state.ready)
   const initError = useChatStore((state) => state.initError)
   const saveError = useChatStore((state) => Object.values(state.sessionSaveErrors).some(Boolean))
@@ -56,29 +66,112 @@ export const App = () => {
     document.documentElement.lang = locale
   }, [locale])
 
-  // 文件数、存储空间达到上限时，附件上只显示「上传失败」，原因用 toast 说明
-  useEffect(() => onUploadNotice(showToast), [])
-  useEffect(bindChatPersistence, [])
-
-  // 搜索结果面板只属于当前会话
-  useEffect(closeSearchPanel, [activeId])
-  // 切换会话时停止朗读
-  useEffect(stopReadAloud, [activeId])
-  // 移动端选中会话、切换布局后收起抽屉
-  useEffect(closeMobileSider, [activeId, isMobile])
+  useEffect(() => {
+    void api<{ user: PlatformUser | null }>('/api/auth/me')
+      .then((result) => setUser(result.user))
+      .catch(() => setUser(null))
+  }, [])
 
   useEffect(() => {
-    void initChat()
-    // 首次打开先在设置里输入 API Key
-    ensureApiKey()
+    if (!user) {
+      return
+    }
+    const currentKey = useSettings.getState().apiKey
+    setApiKey(
+      user.keyMode === 'platform'
+        ? 'platform'
+        : currentKey && currentKey !== 'platform'
+          ? currentKey
+          : 'stored'
+    )
+    let stop: (() => void) | undefined
+    let cancelled = false
+    void switchChatOwner(user.id).then(() => {
+      if (cancelled) {
+        return
+      }
+      if (
+        useChatStore.getState().sessions.length === 0 &&
+        !localStorage.getItem(`continuity:onboarded:${user.id}`)
+      ) {
+        openMigration()
+      }
+      stop = startProactiveDelivery()
+    })
+    return () => {
+      cancelled = true
+      stop?.()
+    }
+  }, [user])
+
+  useEffect(() => {
+    const openAccount = () => setView('account')
+    window.addEventListener('continuity:open-account', openAccount)
+    return () => window.removeEventListener('continuity:open-account', openAccount)
   }, [])
+  useEffect(() => onUploadNotice(showToast), [])
+  useEffect(bindChatPersistence, [])
+  useEffect(closeSearchPanel, [activeId])
+  useEffect(stopReadAloud, [activeId])
+  useEffect(closeMobileSider, [activeId, isMobile])
+
+  if (user === undefined) {
+    return <div className={platformStyles.loadingPage}>正在恢复你的空间…</div>
+  }
+  if (user === null) {
+    return (
+      <>
+        <AuthScreen onAuthenticated={setUser} />
+        <Toast />
+      </>
+    )
+  }
+
+  const chatContent = (
+    <div className={styles.content}>
+      {siderCollapsed ? <CollapsedSider /> : null}
+      {!ready || (activeId !== null && !session) ? (
+        <div className={styles.loadingView}>
+          {isMobile ? <MobileHeader /> : null}
+          <div className={styles.loadingState} role="status" aria-live="polite">
+            <span>
+              {(!ready ? initError : sessionLoadError)
+                ? t(!ready ? 'sessionListLoadFailed' : 'sessionLoadFailed')
+                : t('sessionLoading')}
+            </span>
+            {(!ready ? initError : sessionLoadError) ? (
+              <Button
+                variant="outlined"
+                size="m"
+                onClick={() => {
+                  if (user) {
+                    void switchChatOwner(user.id)
+                  }
+                  if (ready && activeId !== null) {
+                    selectSession(activeId)
+                  }
+                }}
+              >
+                {t('retry')}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : session ? (
+        <SessionView session={session} streaming={streaming} siderCollapsed={siderCollapsed} />
+      ) : (
+        <Welcome />
+      )}
+    </div>
+  )
 
   return (
     <>
       <div ref={frameRef} className={styles.frame}>
-        {isMobile ? <MobileSider /> : siderCollapsed ? null : <Sider />}
+        {view === 'chat' ? isMobile ? <MobileSider /> : siderCollapsed ? null : <Sider /> : null}
         <main className={styles.main}>
-          {saveError ? (
+          <WorkspaceNav view={view} onView={setView} user={user} />
+          {view === 'chat' && saveError ? (
             <div className={styles.saveError} role="alert">
               <span>{t('sessionSaveFailed')}</span>
               <Button
@@ -91,48 +184,30 @@ export const App = () => {
               </Button>
             </div>
           ) : null}
-          <div className={styles.content}>
-            {siderCollapsed ? <CollapsedSider /> : null}
-            {!ready || (activeId !== null && !session) ? (
-              <div className={styles.loadingView}>
-                {isMobile ? <MobileHeader /> : null}
-                <div className={styles.loadingState} role="status" aria-live="polite">
-                  <span>
-                    {(!ready ? initError : sessionLoadError)
-                      ? t(!ready ? 'sessionListLoadFailed' : 'sessionLoadFailed')
-                      : t('sessionLoading')}
-                  </span>
-                  {(!ready ? initError : sessionLoadError) ? (
-                    <Button
-                      variant="outlined"
-                      size="m"
-                      onClick={() => {
-                        if (!ready) {
-                          void initChat()
-                        } else if (activeId !== null) {
-                          selectSession(activeId)
-                        }
-                      }}
-                    >
-                      {t('retry')}
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            ) : session ? (
-              <SessionView
-                session={session}
-                streaming={streaming}
-                siderCollapsed={siderCollapsed}
-              />
-            ) : (
-              <Welcome />
-            )}
-          </div>
+          {view === 'chat' ? (
+            chatContent
+          ) : (
+            <div className={`${styles.content} ${styles.platformContent}`}>
+              {view === 'studio' ? <CompanionStudio /> : null}
+              {view === 'agent' ? <AgentWorkspace /> : null}
+              {view === 'tasks' ? <TasksPage /> : null}
+              {view === 'account' ? (
+                <AccountPage
+                  user={user}
+                  onUser={setUser}
+                  onLogout={() => {
+                    setUser(null)
+                    setView('chat')
+                  }}
+                />
+              ) : null}
+            </div>
+          )}
         </main>
-        <SearchPanel />
+        {view === 'chat' ? <SearchPanel /> : null}
       </div>
       <SettingsDialog />
+      <MigrationDialog userId={user.id} />
       <Toast />
     </>
   )

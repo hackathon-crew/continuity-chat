@@ -20,6 +20,10 @@
   min-height: 0;
 }
 
+.platformContent {
+  overflow-y: auto;
+}
+
 .saveError {
   display: flex;
   align-items: center;

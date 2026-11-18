@@ -15,11 +15,15 @@ export const openSettings = (section: SettingsSection) =>
 
 export const closeSettings = () => useSettingsDialog.setState({ open: false })
 
-/** 没有 API Key 时打开设置并选中 API Key 所在的「数据管理」，返回是否已有 Key */
+export const openAccountSettings = () => {
+  window.dispatchEvent(new CustomEvent('continuity:open-account'))
+}
+
+/** 没有 API Key 时进入账户页的模型连接，返回是否已有 Key */
 export const ensureApiKey = () => {
   if (useSettings.getState().apiKey) {
     return true
   }
-  openSettings('data')
+  openAccountSettings()
   return false
 }

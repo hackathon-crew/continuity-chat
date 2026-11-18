@@ -7,7 +7,7 @@ export type Locale = 'zh-CN' | 'en-US'
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-/** 本机设置，存 localStorage：API Key、语言、主题、位置、朗读音色、深度思考与智能搜索开关、侧边栏收起状态 */
+/** 本机偏好与 API Key 缓存；自有 Key 的加密副本由服务端账户设置维护。 */
 type Settings = {
   apiKey: string | null
   locale: Locale

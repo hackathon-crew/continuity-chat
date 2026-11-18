@@ -7,7 +7,7 @@ import { canContinueReply } from '../../services/chat/reply.js'
 import { continueReply, regenerateReply } from '../../services/chat/store.js'
 import { stopReadAloud } from '../../services/speech/readAloud.js'
 import type { AssistantMessage as AssistantMessageType } from '../../services/chat/types.js'
-import { openSettings } from '../settings/settingsDialogState.js'
+import { openAccountSettings } from '../settings/settingsDialogState.js'
 import { IconButton } from '../base/IconButton.js'
 import { Button } from '../base/Button.js'
 import { Markdown } from '../markdown/Markdown.js'
@@ -99,11 +99,7 @@ export const AssistantMessage = memo(function AssistantMessage({
             {notice.action === 'apiKey' ? (
               <>
                 {' '}
-                <button
-                  type="button"
-                  className={styles.noticeAction}
-                  onClick={() => openSettings('data')}
-                >
+                <button type="button" className={styles.noticeAction} onClick={openAccountSettings}>
                   {t('changeApiKey')}
                 </button>
               </>

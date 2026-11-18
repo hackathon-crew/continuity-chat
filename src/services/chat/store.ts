@@ -5,6 +5,7 @@ import type { ChatModel, CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { useSettings } from '../settings.js'
+import { getCompanionPrompt } from '../platform.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
 import {
@@ -34,8 +35,6 @@ import {
 
 /** deepseek-flash 同时支持深度思考与图片输入 */
 const MODEL: ChatModel = 'deepseek-flash'
-/** 所有生成请求统一携带的助手身份说明 */
-const SYSTEM_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'
 /** 保留最近打开的详情；当前会话、生成中及尚未成功保存的会话不淘汰。 */
 const SESSION_CACHE_LIMIT = 5
 /** 安全审核固定开启，所有请求都走扩展模式 */
@@ -46,10 +45,10 @@ const FILE_RETRY_LIMIT = 2
 const FILE_RETRY_BASE_DELAY = 1000
 
 /** 阅读链接始终开启，智能搜索开关控制是否另行声明搜索工具（含边想边搜）。 */
-const serverTools = (search: boolean): CreateMessageRequest['tools'] => {
-  const tools: CreateMessageRequest['tools'] = [
-    { type: 'deepseek_read_url', name: 'deepseek_read_url' },
-  ]
+const serverTools = (search: boolean, readUrl: boolean): CreateMessageRequest['tools'] => {
+  const tools: CreateMessageRequest['tools'] = readUrl
+    ? [{ type: 'deepseek_read_url', name: 'deepseek_read_url' }]
+    : []
   if (search) {
     tools.push({ type: 'deepseek_web_search', name: 'deepseek_web_search' })
   }
@@ -115,6 +114,7 @@ const streamFlushes = new Map<string, () => void>()
 let accessSequence = 0
 let historyEpoch = 0
 let initTask: Promise<void> | undefined
+let currentOwner: string | null = null
 const sessionLoads = new Map<string, { promise: Promise<void> }>()
 
 const touchSession = (id: string) => sessionAccess.set(id, ++accessSequence)
@@ -440,6 +440,36 @@ export const replaceHistory = async (write: () => Promise<void>): Promise<number
   }
 }
 
+export const switchChatOwner = async (userId: string) => {
+  if (currentOwner === userId && get().ready) {
+    return
+  }
+  for (const controller of Object.values(get().streaming)) {
+    controller.abort()
+  }
+  await waitForIdle()
+  currentOwner = userId
+  historyEpoch += 1
+  initTask = undefined
+  sessionLoads.clear()
+  sessionAccess.clear()
+  unsavedSessions.clear()
+  pendingFiles.clear()
+  clearAllDrafts()
+  await db.setChatOwner(userId)
+  set({
+    ready: false,
+    initError: false,
+    sessions: [],
+    sessionCache: {},
+    activeId: null,
+    sessionLoadErrors: {},
+    sessionSaveErrors: {},
+    streaming: {},
+  })
+  await initChat()
+}
+
 export const newChat = () => {
   if (!get().importingHistory) {
     set({ activeId: null })
@@ -454,6 +484,56 @@ export const selectSession = (id: string) => {
     void ensureSessionLoaded(id)
     trimSessionCache()
   }
+}
+
+export const appendProactiveMessage = async (
+  sessionId: string | null,
+  sessionTitle: string,
+  content: string
+) => {
+  const text = content.trim()
+  if (!text || get().importingHistory) {
+    return null
+  }
+  if (sessionId && get().sessions.some((item) => item.id === sessionId) && !getSession(sessionId)) {
+    await ensureSessionLoaded(sessionId)
+  }
+  let current = sessionId ? getSession(sessionId) : undefined
+  const now = Date.now()
+  if (!current) {
+    const session: Session = {
+      id: createId(),
+      title: sessionTitle || '主动消息',
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+      rootMessageId: null,
+    }
+    touchSession(session.id)
+    set((state) => ({
+      sessions: [toSessionSummary(session), ...state.sessions],
+      sessionCache: { ...state.sessionCache, [session.id]: session },
+    }))
+    current = session
+  }
+  const reply: AssistantMessage = {
+    id: createId(),
+    role: 'assistant',
+    createdAt: now,
+    model: null,
+    thinking: false,
+    search: false,
+    prefix: false,
+    status: 'done',
+    blocks: [{ type: 'text', text }],
+  }
+  const last = getVisibleMessages(current).at(-1)
+  updateSession(current.id, (session) => ({
+    ...appendBranch(session, last?.id ?? null, [reply]),
+    updatedAt: now,
+  }))
+  persist(current.id)
+  return current.id
 }
 
 export const renameSession = (id: string, title: string) => {
@@ -996,15 +1076,16 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           initial.thinking ?? false,
           latestReminder
         )
+        const companion = await getCompanionPrompt()
         const events = streamMessage(
           useSettings.getState().apiKey ?? '',
           {
             model: initial.model ?? MODEL,
-            system: SYSTEM_PROMPT,
+            system: companion.prompt,
             messages,
             thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
             safety_check: SAFETY_CHECK,
-            tools: serverTools(initial.search ?? false),
+            tools: serverTools((initial.search ?? false) || companion.search, companion.readUrl),
             ...(titleRequests.has(controller) ? { title: { enabled: true } } : {}),
           },
           controller.signal

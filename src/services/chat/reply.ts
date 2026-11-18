@@ -185,8 +185,7 @@ export const canContinueReply = (reply: AssistantMessage): boolean => {
     return false
   }
   return (
-    reply.status === 'stopped' ||
-    (reply.status === 'done' && reply.stopReason === 'max_tokens')
+    reply.status === 'stopped' || (reply.status === 'done' && reply.stopReason === 'max_tokens')
   )
 }
 
@@ -316,6 +315,7 @@ export const toRequestMessages = (
       previousReminder = reminder
     }
   }
+  let lastIncludedReplyId: string | undefined
   for (const [user, reply] of getContextRounds(history)) {
     // 历史提问没有文字、附件也都没有 serverId 时，提问为空，连同回答一起省略。
     if (!user.content && toFileBlocks(user.files).length === 0) {
@@ -323,6 +323,15 @@ export const toRequestMessages = (
     }
     appendReminder(reply.latestReminder)
     messages.push(toUserParam(user), toAssistantParam(reply))
+    lastIncludedReplyId = reply.id
+  }
+  const trailing = history.at(-1)
+  if (
+    trailing?.role === 'assistant' &&
+    trailing.id !== lastIncludedReplyId &&
+    isUsableReply(trailing)
+  ) {
+    messages.push(toAssistantParam(trailing))
   }
   appendReminder(latestReminder)
   messages.push(toUserParam(question))

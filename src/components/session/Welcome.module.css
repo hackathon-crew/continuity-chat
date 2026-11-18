@@ -26,6 +26,24 @@
   font-weight: 600;
   text-align: center;
   color: var(--dsw-alias-label-primary);
+  animation: greetingIn 0.42s ease-out;
+}
+
+@keyframes greetingIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .greeting {
+    animation: none;
+  }
 }
 
 @media (max-width: 439px) {

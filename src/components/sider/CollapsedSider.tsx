@@ -3,10 +3,11 @@ import { useTranslate } from '../../i18n/index.js'
 import { setSiderCollapsed } from '../../services/settings.js'
 import { newChat } from '../../services/chat/store.js'
 import { IconButton } from '../base/IconButton.js'
+import { AgentOrb } from '../platform/AgentOrb.js'
+import type { WorkspaceView } from '../platform/workspaceView.js'
 import styles from './Sider.module.css'
 
-/** 收起后左上角的按钮组 */
-export const CollapsedSider = () => {
+export const CollapsedSider = ({ onView }: { onView: (view: WorkspaceView) => void }) => {
   const t = useTranslate()
   return (
     <div className={styles.collapsed}>
@@ -23,8 +24,18 @@ export const CollapsedSider = () => {
           tone="primary"
           icon={<NewChatIcon />}
           tooltip={t('newChat')}
-          onClick={newChat}
+          onClick={() => {
+            newChat()
+            onView('chat')
+          }}
         />
+        <button
+          className={styles.collapsedAgent}
+          aria-label="Personal Agent"
+          onClick={() => onView('agent')}
+        >
+          <AgentOrb size="small" />
+        </button>
       </div>
     </div>
   )

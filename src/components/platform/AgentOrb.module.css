@@ -1,0 +1,89 @@
+.orb {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #eff0ff, #dcdffb);
+  box-shadow: inset 0 0 0 1px rgba(91, 96, 173, 0.1);
+}
+
+.small {
+  width: 22px;
+  height: 22px;
+}
+.medium {
+  width: 32px;
+  height: 32px;
+}
+.large {
+  width: 64px;
+  height: 64px;
+}
+
+.core {
+  width: 48%;
+  height: 48%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #aeb5ff 0%, #757dd8 48%, #4c528f 100%);
+  box-shadow: 0 0 12px rgba(104, 112, 208, 0.25);
+  transition: transform 0.3s ease;
+}
+
+.status {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--dsw-alias-bg-base);
+  border-radius: 50%;
+  background: #61b892;
+}
+
+.large .status {
+  width: 11px;
+  height: 11px;
+  border-width: 3px;
+}
+.active .core {
+  transform: scale(1.08);
+}
+.running .core {
+  animation: orbPulse 1.8s ease-in-out infinite;
+}
+.running {
+  animation: orbGlow 2.4s ease-in-out infinite;
+}
+
+@keyframes orbPulse {
+  0%,
+  100% {
+    transform: scale(0.88);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+
+@keyframes orbGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(117, 125, 216, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(117, 125, 216, 0.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .core,
+  .running,
+  .running .core {
+    animation: none;
+    transition: none;
+  }
+}

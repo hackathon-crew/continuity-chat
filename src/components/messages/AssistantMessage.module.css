@@ -1,3 +1,65 @@
+.personalAgent {
+  animation: agentMessageIn 0.32s ease-out;
+}
+
+.agentBadge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+}
+
+.agentBadge strong {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 550;
+}
+
+.agentBadge > span:last-child {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.agentTrace {
+  margin: 10px 0;
+  padding: 10px 13px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-specific-sidebar-fill);
+  font-size: 12px;
+}
+
+.agentTrace details {
+  margin-top: 7px;
+}
+.agentTrace summary {
+  cursor: pointer;
+  font-family: var(--ds-font-family-code);
+}
+.agentTrace pre {
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+@keyframes agentMessageIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .personalAgent {
+    animation: none;
+  }
+}
+
 .message {
   position: relative;
 

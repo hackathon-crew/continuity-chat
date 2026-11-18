@@ -89,6 +89,9 @@ export type AssistantMessage = MessageBranch & {
   blocks: ReplyBlock[]
   stopReason?: StopReason
   stopDetails?: StopDetails
+  /** 是否由独立 Personal Agent 执行并插回当前会话 */
+  personalAgent?: boolean
+  toolTrace?: { name: string; input: unknown; output: string }[]
   /** 最近一次请求的用量，续写后更新 */
   usage?: MessageUsage
   error?: {

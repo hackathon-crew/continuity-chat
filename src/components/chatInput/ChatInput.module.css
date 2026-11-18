@@ -317,6 +317,14 @@
   }
 }
 
+.agentToggle {
+  padding-inline: 7px 10px;
+}
+
+.agentToggle > span:first-child {
+  transform: scale(0.72);
+}
+
 .right {
   display: flex;
   flex-shrink: 0;

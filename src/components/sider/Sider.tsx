@@ -2,8 +2,10 @@ import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import {
+  IconDataOutline16,
   IconPanelLeftOutline16,
   IconSettingsOutline16,
+  IconThinkOutline14,
   IconUploadOutline14,
   NewChatIcon,
 } from '../base/icons.js'
@@ -11,18 +13,27 @@ import { setSiderCollapsed } from '../../services/settings.js'
 import { groupSessions } from '../../services/chat/sessionGroups.js'
 import { newChat, removeSession, useChatStore } from '../../services/chat/store.js'
 import type { SessionSummary } from '../../services/chat/types.js'
+import type { PlatformUser } from '../../services/platform.js'
+import type { WorkspaceView } from '../platform/workspaceView.js'
+import { AgentOrb } from '../platform/AgentOrb.js'
 import { Button } from '../base/Button.js'
 import { IconButton } from '../base/IconButton.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import { openSettings } from '../settings/settingsDialogState.js'
+import { openMigration } from '../platform/MigrationDialog.js'
 import { closeMobileSider, useMobileSider } from './mobileSiderState.js'
 import { SessionItem } from './SessionItem.js'
-import { openMigration } from '../platform/MigrationDialog.js'
 import styles from './Sider.module.css'
 
-/** 展开的侧边栏：名称与收起按钮、开启新对话、按时间分组的会话列表、底部设置；移动端放在抽屉里，收起按钮关闭抽屉 */
-export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
+type SiderProps = {
+  mobile?: boolean
+  user: PlatformUser
+  view: WorkspaceView
+  onView: (view: WorkspaceView) => void
+}
+
+export const Sider = ({ mobile = false, user, view, onView }: SiderProps) => {
   const t = useTranslate()
   const sessions = useChatStore((state) => state.sessions)
   const activeId = useChatStore((state) => state.activeId)
@@ -30,6 +41,12 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const groups = useMemo(() => groupSessions(sessions, now, t), [sessions, now, t])
   const [deleting, setDeleting] = useState<SessionSummary | null>(null)
   const [deletePending, setDeletePending] = useState(false)
+  const changeView = (next: WorkspaceView) => {
+    onView(next)
+    if (mobile) {
+      closeMobileSider()
+    }
+  }
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
@@ -58,7 +75,9 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   return (
     <div className={clsx(styles.sider, mobile && styles.mobile)}>
       <div className={styles.top}>
-        <div className={styles.appName}>{t('appName')}</div>
+        <button className={styles.brand} onClick={() => changeView('chat')}>
+          续伴 <span>Continuity</span>
+        </button>
         <IconButton
           size="m"
           icon={<IconPanelLeftOutline16 />}
@@ -68,32 +87,37 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         />
       </div>
       <button
-        type="button"
         className={styles.newChat}
         onClick={() => {
           newChat()
-          closeMobileSider()
+          changeView('chat')
         }}
       >
-        <span className={styles.newChatIcon}>
-          <NewChatIcon />
-        </span>
-        {t('newChat')}
+        <NewChatIcon />
+        <span>开启新对话</span>
       </button>
       <button
-        type="button"
-        className={clsx(styles.newChat, styles.migrationButton)}
+        className={clsx(styles.agentEntry, view === 'agent' && styles.agentEntryActive)}
+        onClick={() => changeView('agent')}
+      >
+        <AgentOrb size="small" active={view === 'agent'} />
+        <span className={styles.agentText}>
+          <strong>Personal Agent</strong>
+          <small>长期目标与独立任务</small>
+        </span>
+        <span className={styles.onlineDot} />
+      </button>
+      <button
+        className={styles.migrationButton}
         onClick={() => {
+          changeView('chat')
           openMigration()
-          closeMobileSider()
         }}
       >
-        <span className={styles.newChatIcon}>
-          <IconUploadOutline14 />
-        </span>
-        接回 DeepSeek 对话
+        <IconUploadOutline14 /> 接回 DeepSeek 对话
       </button>
       <div className={styles.listWrap}>
+        <div className={styles.conversationLabel}>对话</div>
         <div className={styles.list}>
           {groups.map((group) => (
             <div key={group.key} className={styles.section}>
@@ -102,21 +126,48 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
                 <SessionItem
                   key={session.id}
                   session={session}
-                  active={session.id === activeId}
+                  active={view === 'chat' && session.id === activeId}
                   onDelete={() => setDeleting(session)}
+                  onSelect={() => onView('chat')}
                 />
               ))}
             </div>
           ))}
+          {sessions.length === 0 ? (
+            <div className={styles.emptyChats}>导入一段历史，或开始新的对话。</div>
+          ) : null}
         </div>
       </div>
       <div className={styles.bottom}>
-        <button type="button" className={styles.settings} onClick={() => openSettings('general')}>
-          <span className={styles.settingsIcon}>
-            <IconSettingsOutline16 />
-          </span>
-          <span className={styles.settingsLabel}>{t('settings')}</span>
+        <button
+          className={clsx(styles.navRow, view === 'studio' && styles.navRowActive)}
+          onClick={() => changeView('studio')}
+        >
+          <IconDataOutline16 />
+          <span>伙伴与能力</span>
         </button>
+        <button
+          className={clsx(styles.navRow, view === 'tasks' && styles.navRowActive)}
+          onClick={() => changeView('tasks')}
+        >
+          <IconThinkOutline14 />
+          <span>自动化</span>
+        </button>
+        <div className={styles.accountRow}>
+          <button className={styles.accountButton} onClick={() => changeView('account')}>
+            <span className={styles.avatar}>{user.name.slice(0, 1).toUpperCase()}</span>
+            <span className={styles.accountText}>
+              <strong>{user.name}</strong>
+              <small>{user.email}</small>
+            </span>
+          </button>
+          <IconButton
+            size="m"
+            icon={<IconSettingsOutline16 />}
+            tooltip={t('settings')}
+            onClick={() => openSettings('general')}
+          />
+        </div>
       </div>
       {deleting ? (
         <Modal
@@ -159,8 +210,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   )
 }
 
-/** 移动端抽屉：浮在页面上方，点空白区域关闭。 */
-export const MobileSider = () => {
+export const MobileSider = (props: Omit<SiderProps, 'mobile'>) => {
   const open = useMobileSider((state) => state.open)
   if (!open) {
     return null
@@ -169,7 +219,7 @@ export const MobileSider = () => {
     <>
       <div className={styles.drawerMask} onClick={closeMobileSider} />
       <div className={styles.drawer}>
-        <Sider mobile />
+        <Sider {...props} mobile />
       </div>
     </>
   )

@@ -142,9 +142,9 @@ export function ChatPage({ conversation, balance, onSend, onModelChange, onOpenA
       onRemoveAttachment={() => {}}
     />
     {empty ? <div className="xb-suggestions">
-      <button type="button" className="qx-item" onClick={onOpenImport}><ClockCounterClockwiseIcon aria-hidden="true" />导入 DeepSeek 记录，接着原来的对话聊</button>
-      <button type="button" className="qx-item" onClick={() => { setValue('帮我写一封请假邮件，明天上午去医院'); inputRef.current?.focus() }}><EnvelopeSimpleIcon aria-hidden="true" />写一封请假邮件</button>
-      <button type="button" className="qx-item" onClick={() => { setValue('今天有点累，陪我聊一会儿'); inputRef.current?.focus() }}><ChatCircleIcon aria-hidden="true" />陪我聊一会儿</button>
+      <button type="button" className="qx-item" onClick={onOpenImport}><ClockCounterClockwiseIcon weight="bold" aria-hidden="true" />导入 DeepSeek 记录，接着原来的对话聊</button>
+      <button type="button" className="qx-item" onClick={() => { setValue('帮我写一封请假邮件，明天上午去医院'); inputRef.current?.focus() }}><EnvelopeSimpleIcon weight="bold" aria-hidden="true" />写一封请假邮件</button>
+      <button type="button" className="qx-item" onClick={() => { setValue('今天有点累，陪我聊一会儿'); inputRef.current?.focus() }}><ChatCircleIcon weight="bold" aria-hidden="true" />陪我聊一会儿</button>
     </div> : null}
   </>
 

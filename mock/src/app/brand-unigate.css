@@ -1,0 +1,18 @@
+/* 对照用：主站 UniGate 的品牌层（frontend/src/styles/tokens.css，origin/main 84971ba）覆盖到 --qx-*；会话层的字阶、圆角、动效不动。深色暂沿用 Everplain。 */
+:root[data-brand='unigate'] {
+  --qx-color-canvas: light-dark(rgb(247 249 253), #1c1e1d);
+  --qx-color-surface-muted: light-dark(rgb(245 248 253), #202221);
+  --qx-color-surface-strong: light-dark(rgb(236 242 252), #303331);
+  --qx-color-ink: light-dark(rgb(26 38 58), #e6e7e3);
+  --qx-color-ink-soft: light-dark(rgb(26 38 58), #c9ccc6);
+  --qx-color-muted: light-dark(rgb(83 102 128), #a4aaa2);
+  --qx-color-faint: light-dark(rgb(122 139 161), #92998f);
+  --qx-color-accent: light-dark(rgb(42 119 255), #e0e4db);
+  --qx-color-accent-hover: light-dark(rgb(24 100 232), #c9d0c4);
+  --qx-color-accent-soft: light-dark(rgb(237 245 255), #303630);
+  --qx-color-on-accent: light-dark(rgb(255 255 255), #20241f);
+  --qx-color-danger: light-dark(rgb(201 42 42), #e2a3a6);
+  --qx-color-success: light-dark(rgb(8 127 91), #7fa386);
+  --qx-color-warning: light-dark(rgb(178 92 0), #bfa07d);
+  --qx-font-ui: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+}

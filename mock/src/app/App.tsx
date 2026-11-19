@@ -12,6 +12,7 @@ import { LoginPage } from './LoginPage'
 import { BrandName, OctoMark } from './parts'
 import { SettingsDialog, type Scheme, type SettingsTab } from './SettingsDialog'
 import './app.css'
+import './brand-unigate.css'
 
 type View = { kind: 'agent' } | { kind: 'chat'; id: string }
 
@@ -160,6 +161,7 @@ export function App() {
     ['设置：账户与余额', () => setSettings('account')],
     ['设置：外观', () => setSettings('appearance')],
     ['登录页', () => setSignedIn(false)],
+    ['令牌：切换 Everplain / 主站 UniGate', () => { const root = document.documentElement; if (root.dataset.brand) delete root.dataset.brand; else root.dataset.brand = 'unigate' }],
   ]
   const shown = chats.filter(chat => !filter.trim() || chat.title.includes(filter.trim()))
   const history = <div>

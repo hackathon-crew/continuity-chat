@@ -61,7 +61,7 @@ export function App() {
     else root.setAttribute('data-color-scheme', scheme)
   }, [scheme])
 
-  // 周报 PPT 是一个正在跑的后台任务：开页 25 秒后完成，Uni主动来报。
+  // 周报 PPT 是一个正在跑的后台任务：开页 25 秒后完成，Uni 主动来报。
   useEffect(() => {
     later(() => {
       setChats(list => list.map(chat => ({ ...chat, turns: chat.turns.map(turn => turn.task ? { ...turn, task: { ...turn.task, status: 'done' } } : turn) })))
@@ -97,7 +97,7 @@ export function App() {
       setDraft(null)
     } else setChats(list => list.map(chat => chat.id === current.id ? { ...chat, turns: [...chat.turns, turn] } : chat))
     const chatId = current.id
-    const full = options.handoff ? `好，交给${agent.name}去做了。它会先列个大纲，做好放在它那边，你可以继续在这里聊别的。` : scriptedChatReply
+    const full = options.handoff ? `好，交给 ${agent.name} 去做了。它会先列个大纲，做好放在它那边，你可以继续在这里聊别的。` : scriptedChatReply
     let start = 700
     if (options.search) {
       later(() => patchTurn(chatId, turnId, value => ({ ...value, statusText: '正在联网搜索', steps: [{ id: 's', label: `联网搜索：${text.slice(0, 18)}`, status: 'running' }] })), 600)
@@ -155,7 +155,7 @@ export function App() {
     ['导入：选择文件', () => openImport('pick')],
     ['导入：选择对话', () => openImport('select')],
     ['导入：完成', () => openImport('done')],
-    [`设置：${agent.name}与记忆`, () => setSettings('agent')],
+    [`设置：${agent.name} 与记忆`, () => setSettings('agent')],
     ['设置：工具', () => setSettings('tools')],
     ['设置：账户与余额', () => setSettings('account')],
     ['设置：外观', () => setSettings('appearance')],

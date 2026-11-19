@@ -45,7 +45,7 @@ function TurnView({ turn, provider, onOpenAgent }: { turn: Turn; provider: Retur
         {pacer.visible ? <div className="qx-prose cv-turn__prose"><Markdown text={pacer.visible} reveal={pacer} /></div> : null}
         {turn.task && done ? <button type="button" className="xb-task" onClick={onOpenAgent}>
           <span className="xb-task__state" data-state={turn.task.status}>{turn.task.status === 'running' ? <CircleNotchIcon className="cv-spin" aria-hidden="true" /> : <CheckCircleIcon aria-hidden="true" />}</span>
-          <span className="xb-task__text"><strong>{turn.task.title}</strong><span className="qx-meta">{turn.task.status === 'running' ? `${agent.name}正在做，做好会在它那里告诉你` : `已完成，去${agent.name}那里查看`}</span></span>
+          <span className="xb-task__text"><strong>{turn.task.title}</strong><span className="qx-meta">{turn.task.status === 'running' ? `${agent.name} 正在做，做好会在它那里告诉你` : `已完成，去 ${agent.name} 那里查看`}</span></span>
           <OctoMark size={24} />
         </button> : null}
         {done ? <div className="cv-turn__actions">

@@ -137,7 +137,7 @@ export function AgentPage({ items, jobs, pending, mood, onSend, onOpenSettings, 
 
   const thread = <div className="xb-agent-thread" style={{ '--agent-color': 'var(--qx-color-data-blue)' } as CSSProperties}>
     {items.map(item => <Item key={item.id} item={item} />)}
-    {pending ? <div className="xb-row" data-from="agent"><ConversationThinking turn={{ id: 'typing', question: '', answer: '', streaming: true, statusText: `${agent.name}正在输入` }} /></div> : null}
+    {pending ? <div className="xb-row" data-from="agent"><ConversationThinking turn={{ id: 'typing', question: '', answer: '', streaming: true, statusText: `${agent.name} 正在输入` }} /></div> : null}
     <div ref={endRef} />
   </div>
 
@@ -150,13 +150,13 @@ export function AgentPage({ items, jobs, pending, mood, onSend, onOpenSettings, 
       sourceOpen={jobsOpen}
       sourceClosing={jobsClosing}
       title={agent.name}
-      label={`和${agent.name}的对话`}
+      label={`和 ${agent.name} 的对话`}
       modes={<div className="cv-mode-switch" />}
       actions={<div className="xb-agent-actions">
         <button type="button" className="qx-btn qx-btn--ghost" aria-expanded={jobsOpen} onClick={() => jobsOpen ? closeJobs() : setJobsOpen(true)}>
           <ListChecksIcon aria-hidden="true" /><span>任务</span>{running ? <span className="xb-count">{running}</span> : null}
         </button>
-        <button type="button" className="qx-btn qx-btn--ghost qx-btn--icon" aria-label={`${agent.name}的设定和记忆`} title="设定和记忆" onClick={onOpenSettings}><SlidersHorizontalIcon /></button>
+        <button type="button" className="qx-btn qx-btn--ghost qx-btn--icon" aria-label={`${agent.name} 的设定和记忆`} title="设定和记忆" onClick={onOpenSettings}><SlidersHorizontalIcon /></button>
       </div>}
       pet={null}
       companionBar={<div className="xb-agent-hero">
@@ -170,8 +170,8 @@ export function AgentPage({ items, jobs, pending, mood, onSend, onOpenSettings, 
         scopeKey="agent"
         mode="standard"
         value={value}
-        label={`给${agent.name}发消息`}
-        placeholder={`和${agent.name}说点什么`}
+        label={`给 ${agent.name} 发消息`}
+        placeholder={`和 ${agent.name} 说点什么`}
         maxLength={8000}
         busy={false}
         canSend={Boolean(value.trim()) && !pending && !streaming}

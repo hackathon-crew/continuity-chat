@@ -32,21 +32,24 @@ import { ConversationLayout } from '../everplain/app/conversation-view/Conversat
 import { ConversationThinking } from '../everplain/app/conversation-view/ConversationThinking'
 import { flyBubble, takeLaunch } from '../everplain/app/conversation-view/sendFlight'
 import '../everplain/app/conversation-view/conversation-view.css'
-import { agent, displayDate, type Conversation, type Model, type Turn } from './data'
+import { displayDate, type Conversation, type Model, type Turn } from './data'
 import { Markdown, ModelPicker, OctoMark, Popover } from './parts'
+import { FileCard } from './AgentPage'
 import type { SendOptions } from './useConversations'
 
 type ChatPageProps = {
   conversation: Conversation
   balance?: number
   models: Model[]
+  agentName: string
+  searchEnabled: boolean
   onSend: (text: string, options: SendOptions) => void
   onRename: (title: string) => void
   onPin: () => void
   onDelete: () => void
   onStop: () => void
   onModelChange: (id: string) => void
-  onOpenAgent: () => void
+  onOpenAgent: (taskId?: string) => void
   onOpenImport: () => void
 }
 
@@ -55,11 +58,13 @@ function TurnView({
   conversationId,
   onOpenAgent,
   onRegenerate,
+  agentName,
 }: {
   turn: Turn
   conversationId: string
-  onOpenAgent: () => void
+  onOpenAgent: (taskId?: string) => void
   onRegenerate?: () => void
+  agentName: string
 }) {
   const bubble = useRef<HTMLDivElement>(null)
   const launchedWhileStreaming = useRef(turn.streaming)
@@ -124,6 +129,9 @@ function TurnView({
               <Markdown text={turn.reasoning} />
             </details>
           ) : null}
+          {turn.artifacts?.map((artifact) => (
+            <FileCard key={artifact.fileId} {...artifact} />
+          ))}
           {turn.error ? (
             <p role="alert" className="qx-meta">
               {turn.error}
@@ -135,7 +143,7 @@ function TurnView({
             </div>
           ) : null}
           {turn.task && done ? (
-            <button type="button" className="xb-task" onClick={onOpenAgent}>
+            <button type="button" className="xb-task" onClick={() => onOpenAgent(turn.task?.id)}>
               <span className="xb-task__state" data-state={turn.task.status}>
                 {turn.task.status === 'running' ? (
                   <CircleNotchIcon className="cv-spin" aria-hidden="true" />
@@ -147,8 +155,12 @@ function TurnView({
                 <strong>{turn.task.title}</strong>
                 <span className="qx-meta">
                   {turn.task.status === 'running'
-                    ? `${agent.name} 正在做，做好会在它那里告诉你`
-                    : `已完成，去 ${agent.name} 那里查看`}
+                    ? `${agentName} 正在做，做好会在它那里告诉你`
+                    : turn.task.status === 'waiting'
+                      ? `${agentName} 在等你回复`
+                      : turn.task.status === 'failed'
+                        ? `去 ${agentName} 的任务页继续`
+                        : `已完成，去 ${agentName} 那里查看`}
                 </span>
               </span>
               <OctoMark size={24} />
@@ -311,6 +323,8 @@ export function ChatPage({
   conversation,
   balance,
   models,
+  agentName,
+  searchEnabled,
   onSend,
   onModelChange,
   onOpenAgent,
@@ -377,6 +391,7 @@ export function ChatPage({
         type="button"
         role="menuitemcheckbox"
         aria-checked={search}
+        disabled={!searchEnabled}
         onClick={() => {
           setSearch((value) => !value)
           setToolsOpen(false)
@@ -411,7 +426,7 @@ export function ChatPage({
         }}
       >
         <OctoMark size={18} />
-        交给{agent.name}去做
+        交给{agentName}去做
         {handoff ? <CheckIcon className="xb-menu-check" aria-hidden="true" /> : null}
       </button>
     </div>
@@ -447,7 +462,7 @@ export function ChatPage({
           handoff ? (
             <div className="xb-composer-chip">
               <OctoMark size={18} />
-              <span>这一条交给{agent.name}，它做好会在自己那里告诉你</span>
+              <span>这一条交给{agentName}，它做好会在自己那里告诉你</span>
               <button
                 type="button"
                 className="qx-btn qx-btn--ghost qx-btn--icon"
@@ -544,6 +559,7 @@ export function ChatPage({
           turn={turn}
           conversationId={conversation.id}
           onOpenAgent={onOpenAgent}
+          agentName={agentName}
           onRegenerate={
             !turn.imported && !turn.task && !streaming && index === conversation.turns.length - 1
               ? () => onSend(turn.question, { search, handoff: false, replaceId: turn.id })

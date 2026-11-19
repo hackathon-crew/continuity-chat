@@ -57,7 +57,7 @@ export async function importConversation(req, res, store, user) {
     }
     for (const turn of turns) {
       if (
-        typeof turn.id !== 'string' ||
+        typeof turn?.id !== 'string' ||
         typeof turn.question !== 'string' ||
         typeof turn.answer !== 'string'
       ) {
@@ -70,7 +70,7 @@ export async function importConversation(req, res, store, user) {
       ])
     }
     for (const file of files) {
-      if (typeof file.id !== 'string' || typeof file.data !== 'string') {
+      if (typeof file?.id !== 'string' || typeof file.data !== 'string') {
         throw new HttpError(400, '导入的附件结构无效', 'invalid_archive')
       }
       const mediaType = inlineImageTypes.has(file.type) ? file.type : 'application/octet-stream'
@@ -107,9 +107,9 @@ export async function downloadConversationFile(res, db, userId, conversationId, 
 }
 
 export function newAttachment(file) {
-  const text = file.type === 'text/plain' || file.type === 'text/markdown'
-  const image = inlineImageTypes.has(file.type)
-  if (typeof file.name !== 'string' || typeof file.data !== 'string' || !(text || image)) {
+  const text = file?.type === 'text/plain' || file.type === 'text/markdown'
+  const image = inlineImageTypes.has(file?.type)
+  if (typeof file?.name !== 'string' || typeof file.data !== 'string' || !(text || image)) {
     throw new HttpError(400, '聊天附件支持文本和常见图片', 'invalid_attachment')
   }
   const data = Buffer.from(file.data, 'base64')

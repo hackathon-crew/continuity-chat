@@ -17,6 +17,7 @@ export type Turn = {
   steps?: ConversationToolStep[]
   files?: ConversationFile[]
   task?: ChatTask
+  artifacts?: { name: string; meta: string; fileId: string }[]
   imported?: boolean
   streaming?: boolean
   statusText?: string
@@ -52,22 +53,41 @@ export type UsageRow = {
   cache_read_tokens?: number
   actual_cost: number
 }
-export type AgentProfile = { name: string; persona: string; proactive: boolean }
-export const agent: AgentProfile = { name: 'Uni', persona: '', proactive: true }
+export type AgentProfile = { name: string; persona: string; proactive: boolean; timezone: string }
+export const agent: AgentProfile = {
+  name: 'Uni',
+  persona: '',
+  proactive: true,
+  timezone: 'Asia/Shanghai',
+}
 
-export type AgentItem =
+export type AgentItem = { id: string; createdAt?: string; taskId?: string } & (
   | { kind: 'time'; id: string; label: string }
   | { kind: 'agent'; id: string; text: string; streaming?: boolean }
   | { kind: 'user'; id: string; text: string; live?: boolean }
-  | { kind: 'file'; id: string; name: string; meta: string }
+  | { kind: 'file'; id: string; name: string; meta: string; fileId: string }
   | { kind: 'activity'; id: string; steps: ConversationToolStep[] }
-  | { kind: 'reminder'; id: string; title: string; rule: string; enabled: boolean }
+  | {
+      kind: 'reminder'
+      id: string
+      title: string
+      rule: 'once' | 'daily' | 'weekly'
+      enabled: boolean
+      reminderId: string
+      at: string
+      active?: boolean
+    }
+)
 
 export type AgentJob = {
   id: string
   title: string
-  detail: string
   state: 'running' | 'scheduled' | 'done' | 'waiting' | 'failed'
+  source: 'agent' | 'chat' | 'timer' | 'legacy'
+  dueAt?: string
+  updatedAt: string
+  enabled: boolean
+  reminder: boolean
 }
 export type Memory = { id: string; text: string; from: string }
 
@@ -76,3 +96,20 @@ export const displayDate = (value: number | string) =>
     month: 'long',
     day: 'numeric',
   }).format(new Date(value))
+
+export type Tool = {
+  id: string
+  name: string
+  detail: string
+  builtIn: boolean
+  available: boolean
+  on: boolean
+}
+export type AgentState = {
+  profile: AgentProfile
+  items: AgentItem[]
+  jobs: AgentJob[]
+  memories: Memory[]
+  tools: Tool[]
+  mcpServers: { id: string; url: string }[]
+}

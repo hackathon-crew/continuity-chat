@@ -17,6 +17,7 @@ export const config = {
   oauthSecret: process.env.UNIGATE_OAUTH_CLIENT_SECRET ?? '',
   encryptionKey: process.env.APP_ENCRYPTION_KEY ?? '',
   databaseUrl: process.env.DATABASE_URL,
+  tavilyKey: process.env.TAVILY_API_KEY ?? '',
 }
 
 export function validateConfig(settings) {

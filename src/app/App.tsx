@@ -11,12 +11,13 @@ import { NavIcon } from '../everplain/app/ui/NavIcon'
 import { AgentPage } from './AgentPage'
 import { ApiError, json, listModels } from './api'
 import { ChatPage } from './ChatPage'
-import { agent, type Billing, type ConversationSummary, type Model, type User } from './data'
+import { type Billing, type ConversationSummary, type Model, type User } from './data'
 import { ImportDialog } from './ImportDialog'
 import { LoginPage } from './LoginPage'
 import { BrandName, OctoMark } from './parts'
 import { SettingsDialog, type Scheme, type SettingsTab } from './SettingsDialog'
 import { useConversations } from './useConversations'
+import { useUni } from './useUni'
 import './app.css'
 
 type View = { kind: 'agent' } | { kind: 'chat'; id: string }
@@ -77,6 +78,12 @@ export function App() {
   }, [])
   const workspace = useConversations(setError, refreshBilling)
   const loadList = useRef(workspace.loadList)
+  const uni = useUni(user?.id, setError, refreshBilling)
+  const agent = uni.profile
+  const [jobsSignal, setJobsSignal] = useState(0)
+  const states = new Map(
+    uni.jobs.map((job) => [job.id, job.state === 'scheduled' ? ('running' as const) : job.state])
+  )
 
   useEffect(() => {
     let done = false
@@ -116,6 +123,14 @@ export function App() {
 
   const current =
     view.kind === 'chat' ? workspace.chats.find((chat) => chat.id === view.id) : undefined
+  const displayConversation = current && {
+    ...current,
+    turns: current.turns.map((turn) =>
+      turn.task && states.has(turn.task.id)
+        ? { ...turn, task: { ...turn.task, status: states.get(turn.task.id) ?? turn.task.status } }
+        : turn
+    ),
+  }
   const defaultModel =
     models.find((model) => model.provider === 'deepseek')?.id ?? models[0]?.id ?? ''
 
@@ -210,7 +225,11 @@ export function App() {
                 onClick={() => go({ kind: 'chat', id: chat.id })}
               >
                 <span>{chat.title}</span>
-                {chat.turns.some((turn) => turn.streaming || turn.task?.status === 'running') ? (
+                {chat.turns.some(
+                  (turn) =>
+                    turn.streaming ||
+                    (turn.task && (states.get(turn.task.id) ?? turn.task.status) === 'running')
+                ) ? (
                   <CircleNotchIcon className="cv-spin xb-history-item__state" aria-label="进行中" />
                 ) : chat.imported ? (
                   <ClockCounterClockwiseIcon
@@ -416,18 +435,34 @@ export function App() {
         <div className="application-content">
           {view.kind === 'agent' ? (
             <AgentPage
-              items={[]}
-              jobs={[]}
-              pending={false}
-              mood="idle"
-              onSend={() => {}}
-              enabled={false}
+              items={uni.items}
+              jobs={uni.jobs}
+              pending={uni.pending}
+              mood={uni.mood}
+              name={agent.name}
+              onSend={(text, files) => {
+                void uni.send(text, defaultModel, files)
+              }}
+              enabled={Boolean(defaultModel)}
               onOpenSettings={() => openSettings('agent')}
+              openJobs={jobsSignal}
+              selected={uni.selected}
+              onSelectTask={uni.setSelected}
+              onReminder={(id, enabled) => {
+                void uni
+                  .toggleReminder(id, enabled)
+                  .catch((failure) => setError(errorText(failure)))
+              }}
+              onRetry={(task) => {
+                void uni.send('请继续这项任务。', defaultModel, [], task)
+              }}
             />
-          ) : current ? (
+          ) : displayConversation && current ? (
             <ChatPage
               key={current.id}
-              conversation={current}
+              conversation={displayConversation}
+              agentName={agent.name}
+              searchEnabled={uni.tools.some((tool) => tool.id === 'web_search' && tool.on)}
               balance={billing?.balance}
               models={models}
               onSend={(text, options) => {
@@ -455,7 +490,14 @@ export function App() {
                 )
               }}
               onStop={() => workspace.stop(current.id)}
-              onOpenAgent={() => go({ kind: 'agent' })}
+              onOpenAgent={(taskId) => {
+                const job = uni.jobs.find((item) => item.id === taskId)
+                if (job?.state === 'waiting') {
+                  uni.setSelected(job)
+                }
+                setJobsSignal((value) => value + 1)
+                go({ kind: 'agent' })
+              }}
               onOpenImport={openImport}
             />
           ) : null}
@@ -471,6 +513,7 @@ export function App() {
           user={user}
           billing={billing}
           onBillingPage={refreshBilling}
+          uni={uni}
           onSignOut={() => {
             void signOut().catch((failure) => setError(errorText(failure)))
           }}

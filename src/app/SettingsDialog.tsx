@@ -1,8 +1,9 @@
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
 import { SettingsModal } from '../everplain/app/ui/SettingsModal'
 import '../everplain/app/ui/settings-modal.css'
-import { Octopus } from '../inkpaw/Octopus'
-import { agent, displayDate, type Billing, type User } from './data'
+import { AgentSettings, ToolsSettings } from './AgentSettings'
+import { displayDate, type Billing, type User } from './data'
+import type { useUni } from './useUni'
 
 export type SettingsTab = 'agent' | 'tools' | 'account' | 'appearance'
 export type Scheme = 'system' | 'light' | 'dark'
@@ -166,6 +167,7 @@ export function SettingsDialog({
   billing,
   onBillingPage,
   onSignOut,
+  uni,
 }: {
   tab: SettingsTab
   onTab: (tab: SettingsTab) => void
@@ -175,10 +177,11 @@ export function SettingsDialog({
   user: User
   billing?: Billing
   onBillingPage: (page: number) => void
+  uni: ReturnType<typeof useUni>
   onSignOut: () => void
 }) {
   const tabs: [SettingsTab, string][] = [
-    ['agent', agent.name],
+    ['agent', uni.profile.name],
     ['tools', '工具'],
     ['account', '账户与余额'],
     ['appearance', '外观'],
@@ -201,12 +204,9 @@ export function SettingsDialog({
         </nav>
         <div className="xb-settings__body">
           {tab === 'agent' ? (
-            <div className="xb-settings__identity">
-              <Octopus size={64} res={32} mood="idle" label={agent.name} />
-              <strong>{agent.name}</strong>
-            </div>
+            <AgentSettings uni={uni} />
           ) : tab === 'tools' ? (
-            <p className="qx-meta">工具设置将随 Uni 一起启用。</p>
+            <ToolsSettings uni={uni} />
           ) : tab === 'account' ? (
             <AccountTab
               user={user}

@@ -20,3 +20,11 @@ pnpm dev
 ## 导入
 
 侧栏打开「导入 DeepSeek 记录」，选择 ZIP 和想导入的会话。保留原消息分支与时间，从导出时选中的分支继续聊。重复导入同一会话会打开已有的记录。若在同一浏览器和同一站点运行过旧版，导入弹窗会提供本机旧对话的迁移入口。
+
+## Uni
+
+在普通对话的工具菜单选「交给 Uni 去做」，或者直接打开 Uni 发消息。任务会在后台推进，在需要你补充信息或交付结果时写入 Uni 的对话。任务与提醒抽屉可以继续待确认的任务，或重试失败的任务。PPTX 从文件卡下载，文字可编辑。
+
+调度、记忆、工具和文件都在聊天服务自己的 PostgreSQL。联网搜索需要在服务端设置 `TAVILY_API_KEY`。MCP 可从设置加入自己的公开 HTTPS 服务，支持 Streamable HTTP 和可选 Bearer Token。普通对话和 Uni 共用这些工具及登录用户的 UniGate Key。
+
+旧版服务端的 `store.json` 可用 `pnpm import:legacy <store.json> <account-map.json> <UniGate 模型 ID>` 导入。映射文件是旧账户 ID 到已登录的 UniGate 用户 ID 的 JSON 对象。每个旧账户只迁移一次。旧启用任务作为待确认事项导入，点击继续才开始执行。

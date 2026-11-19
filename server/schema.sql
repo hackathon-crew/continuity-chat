@@ -57,3 +57,79 @@ CREATE TABLE IF NOT EXISTS conversation_files (
   content bytea NOT NULL,
   PRIMARY KEY (conversation_id, id)
 );
+
+CREATE TABLE IF NOT EXISTS agent_profiles (
+  user_id bigint PRIMARY KEY REFERENCES chat_users ON DELETE CASCADE,
+  name text NOT NULL DEFAULT 'Uni',
+  persona text NOT NULL DEFAULT '',
+  proactive boolean NOT NULL DEFAULT true,
+  timezone text NOT NULL DEFAULT 'Asia/Shanghai',
+  disabled_tools text[] NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS agent_memories (
+  id uuid PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES chat_users ON DELETE CASCADE,
+  body text NOT NULL,
+  source text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS agent_mcp_servers (
+  id uuid PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES chat_users ON DELETE CASCADE,
+  url text NOT NULL,
+  token text,
+  UNIQUE(user_id, url)
+);
+
+CREATE TABLE IF NOT EXISTS agent_tasks (
+  id uuid PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES chat_users ON DELETE CASCADE,
+  title text NOT NULL,
+  prompt text NOT NULL,
+  model text NOT NULL,
+  context jsonb NOT NULL DEFAULT '[]',
+  state text NOT NULL CHECK (state IN ('running','waiting','scheduled','done','failed')),
+  source text NOT NULL CHECK (source IN ('agent','chat','timer','legacy')),
+  conversation_id uuid REFERENCES conversations ON DELETE SET NULL,
+  turn_id text,
+  reminder jsonb,
+  enabled boolean NOT NULL DEFAULT true,
+  due_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS agent_tickets (
+  id uuid PRIMARY KEY,
+  task_id uuid NOT NULL REFERENCES agent_tasks ON DELETE CASCADE,
+  source text NOT NULL CHECK (source IN ('agent','chat','timer')),
+  prompt text NOT NULL,
+  closed_at timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS agent_messages (
+  id uuid PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES chat_users ON DELETE CASCADE,
+  task_id uuid REFERENCES agent_tasks ON DELETE SET NULL,
+  sequence bigint GENERATED ALWAYS AS IDENTITY,
+  payload jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS agent_files (
+  id uuid PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES chat_users ON DELETE CASCADE,
+  name text NOT NULL,
+  content bytea NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS agent_messages_user_sequence ON agent_messages(user_id, sequence);
+CREATE INDEX IF NOT EXISTS agent_tasks_user_updated ON agent_tasks(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS agent_memories_user ON agent_memories(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS legacy_agent_migrations (
+  local_account_id text PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES chat_users ON DELETE CASCADE,
+  imported_at timestamptz NOT NULL DEFAULT now()
+);

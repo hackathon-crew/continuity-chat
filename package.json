@@ -11,30 +11,40 @@
     "start": "NODE_ENV=production node --env-file-if-exists=.env server/index.js",
     "type": "tsc -p tsconfig.json",
     "lint": "oxlint src server scripts --ignore-pattern 'src/everplain/**' --ignore-pattern 'src/inkpaw/**'",
-    "format": "oxfmt --write ."
+    "format": "oxfmt --write .",
+    "import:legacy": "node --env-file-if-exists=.env scripts/import-legacy.mjs",
+    "test": "node --test server/test/*.test.js"
   },
   "dependencies": {
+    "@ai-sdk/mcp": "2.0.101",
+    "@ai-sdk/openai": "4.0.121",
     "@phosphor-icons/react": "2.1.10",
+    "ai": "7.0.169",
+    "fflate": "0.8.3",
+    "idb": "8.0.3",
+    "ipaddr.js": "^2.5.0",
+    "pg": "8.23.1",
+    "pg-boss": "12.38.2",
+    "pptxgenjs": "4.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1",
     "three": "0.186.1",
-    "fflate": "0.8.3",
-    "idb": "8.0.3",
-    "pg": "8.23.1"
+    "undici": "^7.30.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/hast": "3.0.4",
+    "@types/node": "~22.20.5",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "@types/three": "0.180.0",
     "@vitejs/plugin-react": "5.1.0",
+    "oxfmt": "0.48.0",
+    "oxlint": "1.63.0",
     "typescript": "5.9.3",
     "vfile": "6.0.3",
-    "vite": "7.1.12",
-    "@types/node": "~20.9.2",
-    "oxlint": "1.63.0",
-    "oxfmt": "0.48.0"
+    "vite": "7.1.12"
   }
 }

@@ -1,7 +1,8 @@
 import { readJson, HttpError } from './http.js'
 import { findConversation, getTurns, modelOf, titleOf, uuidPattern } from './conversations.js'
 import { newAttachment } from './archive.js'
-import { completionDeltas } from './stream.js'
+import { runModel } from './agent/model.js'
+import { agentMemories, agentProfile } from './agent/repository.js'
 
 const turnDurationMs = 180_000
 const turnRequestBytes = 16 * 1024 * 1024
@@ -107,7 +108,7 @@ export async function finishTurn(store, id, turn) {
 }
 
 export async function streamTurn(req, res, id, user, services) {
-  const { store, unigate } = services
+  const { store, settings, agent } = services
   const input = await readJson(req, turnRequestBytes)
   const question = typeof input.question === 'string' ? input.question.trim() : ''
   const model = modelOf(input.model)
@@ -147,25 +148,66 @@ export async function streamTurn(req, res, id, user, services) {
     'X-Accel-Buffering': 'no',
   })
   writeEvent(res, { type: 'start', title, turn })
-  try {
-    const messages = await conversationMessages(store.db, id, [...context, turn])
-    const upstream = await unigate.model('/chat/completions', store.secret(user, 'model_key'), {
-      method: 'POST',
-      signal,
-      body: JSON.stringify({ model, messages, stream: true }),
-    })
-    for await (const delta of completionDeltas(upstream)) {
-      turn.answer += delta
-      writeEvent(res, { type: 'delta', delta })
+  if (input.handoff) {
+    try {
+      const history = await conversationMessages(store.db, id, context)
+      const [current] = await conversationMessages(store.db, id, [turn])
+      const incoming = Array.isArray(current?.content) ? [...history, current] : history
+      const receipt = await agent.handoff(user, id, turn, incoming, model)
+      writeEvent(res, { type: 'done', turn: receipt })
+    } catch (error) {
+      turn.streaming = false
+      turn.error = error instanceof HttpError ? error.message : '任务还没有交给 Uni，可以重新发送。'
+      await finishTurn(store, id, turn)
+      writeEvent(res, { type: 'done', turn })
     }
+    res.end()
+    return
+  }
+  try {
+    const [messages, profile, memories] = await Promise.all([
+      conversationMessages(store.db, id, [...context, turn]),
+      agentProfile(store.db, user.id),
+      agentMemories(store.db, user.id),
+    ])
+    const steps = new Map()
+    const { effects } = await runModel({
+      store,
+      settings,
+      user,
+      profile,
+      memories,
+      messages,
+      model,
+      search: input.search === true,
+      signal,
+      onDelta: (delta) => {
+        turn.answer += delta
+        writeEvent(res, { type: 'delta', delta })
+      },
+      onStep: (step) => {
+        steps.set(step.id, step)
+        turn.steps = [...steps.values()]
+        writeEvent(res, { type: 'step', step })
+      },
+    })
+    turn.streaming = false
+    await store.transaction(async (db) => {
+      turn.artifacts = await agent.publishEffects(db, user, model, effects)
+      await finishTurn({ db }, id, turn)
+    })
   } catch (error) {
     if (!abort.signal.aborted) {
-      turn.error = error instanceof HttpError ? error.message : '回复中断。可以从这条消息重新生成。'
+      turn.error =
+        error.statusCode === 402
+          ? 'UniGate 余额不足，请充值后重新生成。'
+          : error instanceof HttpError
+            ? error.message
+            : '回复中断。可以从这条消息重新生成。'
     }
-  } finally {
     turn.streaming = false
     await finishTurn(store, id, turn)
-    writeEvent(res, { type: 'done', turn })
-    res.end()
   }
+  writeEvent(res, { type: 'done', turn })
+  res.end()
 }

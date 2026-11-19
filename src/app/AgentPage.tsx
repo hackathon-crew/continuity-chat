@@ -27,7 +27,7 @@ import { flyBubble, takeLaunch } from '../everplain/app/conversation-view/sendFl
 import '../everplain/app/conversation-view/conversation-view.css'
 import { Octopus } from '../inkpaw/Octopus'
 import type { Mood } from '../inkpaw/inkpaw-octopus'
-import { agent, type AgentItem, type AgentJob } from './data'
+import type { AgentItem, AgentJob } from './data'
 import { Markdown } from './parts'
 
 type AgentPageProps = {
@@ -36,7 +36,12 @@ type AgentPageProps = {
   pending: boolean
   enabled: boolean
   mood: Mood
-  onSend: (text: string) => void
+  name: string
+  onSend: (text: string, files: File[]) => void
+  onReminder: (id: string, enabled: boolean) => void
+  selected?: AgentJob
+  onSelectTask: (task?: AgentJob) => void
+  onRetry: (task: AgentJob) => void
   onOpenSettings: () => void
   openJobs?: number
 }
@@ -82,7 +87,7 @@ function UserBubble({ text, live }: { text: string; live?: boolean }) {
   )
 }
 
-function FileCard({ name, meta }: { name: string; meta: string }) {
+export function FileCard({ name, meta, fileId }: { name: string; meta: string; fileId: string }) {
   const Icon = name.endsWith('.pptx') ? PresentationChartIcon : FileTextIcon
   return (
     <div className="xb-file">
@@ -91,39 +96,56 @@ function FileCard({ name, meta }: { name: string; meta: string }) {
         <strong>{name}</strong>
         <span className="qx-meta">{meta}</span>
       </span>
-      <button
-        type="button"
+      <a
         className="qx-btn qx-btn--ghost qx-btn--icon"
+        href={`/api/agent/files/${fileId}`}
+        download={name}
         aria-label={`下载 ${name}`}
       >
         <DownloadSimpleIcon />
-      </button>
+      </a>
     </div>
   )
 }
 
-function Reminder({ title, rule }: { title: string; rule: string }) {
-  const [on, setOn] = useState(true)
+const shortTime = new Intl.DateTimeFormat('zh-CN', {
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
+function Reminder({
+  item,
+  onToggle,
+}: {
+  item: Extract<AgentItem, { kind: 'reminder' }>
+  onToggle: AgentPageProps['onReminder']
+}) {
+  const label = { once: '一次', daily: '每天', weekly: '每周' }[item.rule]
   return (
     <div className="xb-file">
       <BellSimpleIcon className="xb-file__icon" aria-hidden="true" />
       <span className="xb-file__text">
-        <strong>{title}</strong>
-        <span className="qx-meta">{rule}</span>
+        <strong>{item.title}</strong>
+        <span className="qx-meta">
+          {label} · {shortTime.format(new Date(item.at))}
+        </span>
       </span>
       <button
         type="button"
         className="qx-switch"
         role="switch"
-        aria-checked={on}
-        aria-label={`${title}${on ? '已开启' : '已关闭'}`}
-        onClick={() => setOn((value) => !value)}
+        aria-checked={item.enabled && item.active}
+        disabled={!item.active}
+        aria-label={item.title}
+        onClick={() => onToggle(item.reminderId, !item.enabled)}
       />
     </div>
   )
 }
 
-function Item({ item }: { item: AgentItem }) {
+function Item({ item, onReminder }: { item: AgentItem; onReminder: AgentPageProps['onReminder'] }) {
   switch (item.kind) {
     case 'time':
       return <p className="qx-meta xb-time">{item.label}</p>
@@ -142,13 +164,13 @@ function Item({ item }: { item: AgentItem }) {
     case 'file':
       return (
         <div className="xb-row" data-from="agent">
-          <FileCard name={item.name} meta={item.meta} />
+          <FileCard name={item.name} meta={item.meta} fileId={item.fileId} />
         </div>
       )
     case 'reminder':
       return (
         <div className="xb-row" data-from="agent">
-          <Reminder title={item.title} rule={item.rule} />
+          <Reminder item={item} onToggle={onReminder} />
         </div>
       )
     case 'activity':
@@ -162,11 +184,23 @@ function Item({ item }: { item: AgentItem }) {
 
 const jobGroups = [
   ['running', '正在做'],
+  ['waiting', '等你确认'],
+  ['failed', '可重试'],
   ['scheduled', '定时任务'],
   ['done', '最近完成'],
 ] as const
 
-function JobsPanel({ jobs, onClose }: { jobs: AgentJob[]; onClose: () => void }) {
+function JobsPanel({
+  jobs,
+  onClose,
+  onContinue,
+  onRetry,
+}: {
+  jobs: AgentJob[]
+  onClose: () => void
+  onContinue: (task: AgentJob) => void
+  onRetry: (task: AgentJob) => void
+}) {
   return (
     <div className="qx-panel cv-source-panel xb-jobs">
       <div className="cv-source-panel__head">
@@ -195,7 +229,12 @@ function JobsPanel({ jobs, onClose }: { jobs: AgentJob[]; onClose: () => void })
               <ul className="cv-source-panel__rows">
                 {list.map((job) => (
                   <li key={job.id}>
-                    <button type="button" className="qx-btn qx-btn--ghost">
+                    <button
+                      type="button"
+                      className="qx-btn qx-btn--ghost"
+                      disabled={!['waiting', 'failed'].includes(job.state) || job.reminder}
+                      onClick={() => (job.state === 'failed' ? onRetry(job) : onContinue(job))}
+                    >
                       <span
                         className="cv-tool-state"
                         data-state={
@@ -216,7 +255,13 @@ function JobsPanel({ jobs, onClose }: { jobs: AgentJob[]; onClose: () => void })
                       </span>
                       <span className="xb-job">
                         <strong>{job.title}</strong>
-                        <span className="qx-meta">{job.detail}</span>
+                        <span className="qx-meta">
+                          {job.dueAt
+                            ? shortTime.format(new Date(job.dueAt))
+                            : job.source === 'chat'
+                              ? '来自普通对话'
+                              : shortTime.format(new Date(job.updatedAt))}
+                        </span>
                       </span>
                     </button>
                   </li>
@@ -239,8 +284,14 @@ export function AgentPage({
   onOpenSettings,
   openJobs,
   enabled,
+  name,
+  onReminder,
+  selected,
+  onSelectTask,
+  onRetry,
 }: AgentPageProps) {
   const [value, setValue] = useState('')
+  const [files, setFiles] = useState<File[]>([])
   const [toolsOpen, setToolsOpen] = useState(false)
   const [jobsOpen, setJobsOpen] = useState(false)
   const [jobsClosing, setJobsClosing] = useState(false)
@@ -275,10 +326,11 @@ export function AgentPage({
   }
   function send() {
     const text = value.trim()
-    if (!text || pending || streaming) {
+    if (!text || !enabled || pending || streaming) {
       return
     }
-    onSend(text)
+    onSend(text, files)
+    setFiles([])
     setValue('')
   }
   const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -294,10 +346,28 @@ export function AgentPage({
       className="xb-agent-thread"
       style={{ '--agent-color': 'var(--qx-color-data-blue)' } as CSSProperties}
     >
-      {items.map((item) => (
-        <Item key={item.id} item={item} />
-      ))}
-      {pending ? (
+      {!items.length && !pending ? (
+        <div className="xb-row" data-from="agent">
+          <AgentBubble
+            text={`你好，我是 ${name}。你可以把对话里的事交给我，也可以直接在这里说。`}
+          />
+        </div>
+      ) : null}
+      {items.map((item, index) => {
+        const before = items[index - 1]?.createdAt
+        const showTime =
+          item.createdAt &&
+          (!before || new Date(item.createdAt).toDateString() !== new Date(before).toDateString())
+        return (
+          <div key={item.id}>
+            {showTime && item.createdAt ? (
+              <p className="qx-meta xb-time">{shortTime.format(new Date(item.createdAt))}</p>
+            ) : null}
+            <Item item={item} onReminder={onReminder} />
+          </div>
+        )
+      })}
+      {pending && !streaming ? (
         <div className="xb-row" data-from="agent">
           <ConversationThinking
             turn={{
@@ -305,7 +375,7 @@ export function AgentPage({
               question: '',
               answer: '',
               streaming: true,
-              statusText: `${agent.name} 正在输入`,
+              statusText: `${name} 正在输入`,
             }}
           />
         </div>
@@ -323,8 +393,8 @@ export function AgentPage({
         runtimeMode="standard"
         sourceOpen={jobsOpen}
         sourceClosing={jobsClosing}
-        title={agent.name}
-        label={`和 ${agent.name} 的对话`}
+        title={name}
+        label={`和 ${name} 的对话`}
         modes={<div className="cv-mode-switch" />}
         actions={
           <div className="xb-agent-actions">
@@ -332,6 +402,7 @@ export function AgentPage({
               type="button"
               className="qx-btn qx-btn--ghost"
               aria-expanded={jobsOpen}
+              aria-label="任务与提醒"
               onClick={() => (jobsOpen ? closeJobs() : setJobsOpen(true))}
             >
               <ListChecksIcon aria-hidden="true" />
@@ -341,7 +412,7 @@ export function AgentPage({
             <button
               type="button"
               className="qx-btn qx-btn--ghost qx-btn--icon"
-              aria-label={`${agent.name} 的设定和记忆`}
+              aria-label={`${name} 的设定和记忆`}
               title="设定和记忆"
               onClick={onOpenSettings}
             >
@@ -357,21 +428,32 @@ export function AgentPage({
               size={80}
               res={40}
               mood={mood}
-              label={agent.name}
+              label={name}
             />
-            <span className="xb-agent-hero__name">{agent.name}</span>
+            <span className="xb-agent-hero__name">{name}</span>
           </div>
         }
         prompt=""
         thread={thread}
-        source={<JobsPanel jobs={jobs} onClose={closeJobs} />}
+        source={
+          <JobsPanel
+            jobs={jobs}
+            onClose={closeJobs}
+            onContinue={(task) => {
+              onSelectTask(task)
+              closeJobs()
+              inputRef.current?.focus()
+            }}
+            onRetry={onRetry}
+          />
+        }
         composer={
           <ConversationComposer
             scopeKey="agent"
             mode="standard"
             value={value}
-            label={`给 ${agent.name} 发消息`}
-            placeholder={`和 ${agent.name} 说点什么`}
+            label={`给 ${name} 发消息`}
+            placeholder={`和 ${name} 说点什么`}
             maxLength={8000}
             busy={false}
             canSend={enabled && Boolean(value.trim()) && !pending && !streaming}
@@ -382,8 +464,28 @@ export function AgentPage({
             toolsRef={toolsRef}
             toolsButtonRef={toolsButtonRef}
             fileRef={fileRef}
-            accept=".pdf,.docx,.txt,.md,.png,.jpg"
-            attachments={[]}
+            accept=".txt,.md,.png,.jpg,.jpeg,.webp,.gif"
+            attachments={files.map((file, index) => ({
+              id: String(index),
+              title: file.name,
+              status: '就绪',
+              removable: true,
+            }))}
+            context={
+              selected ? (
+                <div className="xb-composer-chip">
+                  <span>继续「{selected.title}」</span>
+                  <button
+                    className="qx-btn qx-btn--ghost qx-btn--icon"
+                    type="button"
+                    aria-label="另开任务"
+                    onClick={() => onSelectTask(undefined)}
+                  >
+                    <XIcon />
+                  </button>
+                </div>
+              ) : undefined
+            }
             tools={
               <div className="cv-tool-attachments">
                 <button
@@ -421,8 +523,10 @@ export function AgentPage({
             }}
             onStop={() => {}}
             onToggleTools={() => setToolsOpen((value) => !value)}
-            onUpload={() => {}}
-            onRemoveAttachment={() => {}}
+            onUpload={(added) => setFiles((current) => [...current, ...added].slice(0, 8))}
+            onRemoveAttachment={(id) =>
+              setFiles((current) => current.filter((_, index) => String(index) !== id))
+            }
           />
         }
       />

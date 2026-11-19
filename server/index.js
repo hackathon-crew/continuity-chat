@@ -5,6 +5,8 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
+import { startAgent } from './agent/queue.js'
+import { routeAgent } from './agent/routes.js'
 import { downloadConversationFile, importConversation } from './archive.js'
 import { streamTurn } from './chat.js'
 import { billing, finishLogin, logout, publicUser, startLogin } from './auth.js'
@@ -84,6 +86,9 @@ async function api(req, res, url, services) {
     return logout(req, res, services)
   }
   const user = await requireUser(req, store)
+  if (pathname === '/api/agent' || pathname.startsWith('/api/agent/')) {
+    return routeAgent(req, res, pathname, user, services)
+  }
   if (pathname.startsWith('/v1/')) {
     return proxyModel(req, res, url, user, services)
   }
@@ -184,6 +189,7 @@ export async function createApplication(settings = config) {
   const store = new PostgresStore(settings)
   await store.init()
   const services = { settings, store, unigate: new UniGateClient(settings) }
+  services.agent = await startAgent(services)
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, settings.publicUrl)
@@ -197,13 +203,15 @@ export async function createApplication(settings = config) {
     }
   })
   server.on('close', () => {
-    void store.db.end()
+    void services.agent.stop().then(() => store.db.end())
   })
   return server
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const server = await createApplication()
+  process.once('SIGTERM', () => server.close())
+  process.once('SIGINT', () => server.close())
   server.listen(config.port, config.host, () =>
     process.stdout.write(`Unigate Chat listening on ${config.host}:${config.port}\n`)
   )

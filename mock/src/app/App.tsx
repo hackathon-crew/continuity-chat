@@ -15,7 +15,7 @@ import './app.css'
 
 type View = { kind: 'agent' } | { kind: 'chat'; id: string }
 
-const groups: [Conversation['group'], string][] = [['pinned', '置顶'], ['today', '今天'], ['yesterday', '昨天'], ['earlier', '更早']]
+const groups: [Conversation['group'][], string][] = [[['pinned'], '置顶'], [['today', 'yesterday', 'earlier'], '最近']]
 let seq = 0
 const nextId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${seq++}`
 
@@ -165,9 +165,9 @@ export function App() {
   const history = <div>
     {searching ? <div className="qx-search xb-sidebar-search"><MagnifyingGlassIcon aria-hidden="true" /><input autoFocus aria-label="搜索对话" placeholder="搜索对话" value={filter} onChange={event => setFilter(event.target.value)} onBlur={() => { if (!filter) setSearching(false) }} /></div> : null}
     {groups.map(([group, label]) => {
-      const list = shown.filter(chat => chat.group === group)
+      const list = shown.filter(chat => group.includes(chat.group))
       if (!list.length) return null
-      return <section key={group} className="xb-history-group">
+      return <section key={label} className="xb-history-group">
         <h2 className="qx-group-label">{label}</h2>
         {list.map(chat => <button key={chat.id} type="button" className="qx-item application-history__conversation xb-history-item" aria-current={view.kind === 'chat' && view.id === chat.id ? 'page' : undefined} title={chat.title} onClick={() => go({ kind: 'chat', id: chat.id })}>
           <span>{chat.title}</span>

@@ -2,27 +2,44 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const port = Number(process.env.PORT ?? 3080)
+const withoutSlash = (url) => url.replace(/\/$/, '')
+const consoleUrl = withoutSlash(process.env.UNIGATE_CONSOLE_URL ?? 'https://unigate.top')
 
 export const config = {
   root,
-  port: Number(process.env.PORT ?? 3080),
-  dataDir: process.env.DATA_DIR ?? path.join(root, 'data'),
-  deepseekApiBase: (process.env.DEEPSEEK_API_BASE ?? 'https://api.deepseek.com').replace(/\/$/, ''),
-  deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? '',
-  modelApiFormat: process.env.MODEL_API_FORMAT ?? 'anthropic',
-  defaultModel:
-    process.env.MODEL_ID ??
-    (process.env.MODEL_API_FORMAT === 'openai' ? 'gpt-5.6-sol' : 'deepseek-flash'),
-  appSecret: process.env.APP_SECRET ?? '',
-  publicUrl: (
-    process.env.PUBLIC_URL ?? `http://localhost:${Number(process.env.PORT ?? 3080)}`
-  ).replace(/\/$/, ''),
-  demoMode: process.env.DEMO_MODE !== 'false',
-  cookieSecure: process.env.COOKIE_SECURE === 'true',
-  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
-  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
-  stripePrices: {
-    plus: process.env.STRIPE_PLUS_PRICE_ID ?? '',
-    pro: process.env.STRIPE_PRO_PRICE_ID ?? '',
-  },
+  port,
+  host: process.env.HOST ?? '127.0.0.1',
+  publicUrl: withoutSlash(process.env.PUBLIC_URL ?? `http://localhost:${port}`),
+  consoleUrl,
+  apiUrl: withoutSlash(process.env.UNIGATE_API_URL ?? consoleUrl),
+  gatewayUrl: withoutSlash(process.env.UNIGATE_GATEWAY_URL ?? 'https://unigate.top/v1'),
+  oauthSecret: process.env.UNIGATE_OAUTH_CLIENT_SECRET ?? '',
+  encryptionKey: process.env.APP_ENCRYPTION_KEY ?? '',
+  databaseUrl: process.env.DATABASE_URL,
+}
+
+export function validateConfig(settings) {
+  if (!settings.databaseUrl) {
+    throw new Error('DATABASE_URL is required')
+  }
+  if (settings.oauthSecret.length < 32) {
+    throw new Error('UNIGATE_OAUTH_CLIENT_SECRET must have at least 32 characters')
+  }
+  if (!/^[0-9a-f]{64}$/i.test(settings.encryptionKey)) {
+    throw new Error('APP_ENCRYPTION_KEY must be 32 bytes encoded as hex')
+  }
+  for (const key of ['publicUrl', 'consoleUrl', 'apiUrl', 'gatewayUrl']) {
+    const url = new URL(settings[key])
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    if (
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      (url.protocol !== 'https:' && !(local && url.protocol === 'http:'))
+    ) {
+      throw new Error(`${key} must use HTTPS or a local HTTP address`)
+    }
+  }
 }

@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto'
-import { config } from './config.js'
 import { hashToken } from './security.js'
 
 export class HttpError extends Error {
@@ -10,7 +8,7 @@ export class HttpError extends Error {
   }
 }
 
-export const sendJson = (res, status, value) => {
+export function sendJson(res, status, value) {
   const body = JSON.stringify(value)
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -20,25 +18,32 @@ export const sendJson = (res, status, value) => {
   res.end(body)
 }
 
-export const sendError = (res, error) => {
-  const status = error instanceof HttpError ? error.status : 500
-  if (status === 500) {
-    process.stderr.write(`${error.stack ?? error.message ?? String(error)}\n`)
+export function sendError(res, error) {
+  if (res.destroyed) {
+    return
   }
-  sendJson(res, status, {
-    error: {
-      code: error.code ?? 'internal_error',
-      message: status === 500 ? '服务暂时不可用，请稍后重试' : error.message,
-    },
-  })
+  if (res.headersSent) {
+    res.end()
+    return
+  }
+  if (!(error instanceof HttpError)) {
+    process.stderr.write(`${error.stack ?? String(error)}\n`)
+    return sendJson(res, 500, {
+      error: { code: 'internal_error', message: '服务无法完成操作，已保留当前对话' },
+    })
+  }
+  sendJson(res, error.status, { error: { code: error.code, message: error.message } })
 }
 
-export async function readBody(req, limit = 1024 * 1024) {
+const jsonBodyLimit = 1024 * 1024
+
+export async function readBody(req, limit = jsonBodyLimit) {
   const chunks = []
   let size = 0
-  for await (const chunk of req) {
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
     size += chunk.length
     if (size > limit) {
+      req.resume()
       throw new HttpError(413, '请求内容过大', 'body_too_large')
     }
     chunks.push(chunk)
@@ -48,78 +53,51 @@ export async function readBody(req, limit = 1024 * 1024) {
 
 export async function readJson(req, limit) {
   const body = await readBody(req, limit)
-  if (body.length === 0) {
-    return {}
-  }
   try {
-    return JSON.parse(body.toString('utf8'))
+    const value = JSON.parse(body.toString('utf8'))
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('expected object')
+    }
+    return value
   } catch {
-    throw new HttpError(400, '请求不是有效的 JSON', 'invalid_json')
+    throw new HttpError(400, '请求不是有效的 JSON 对象', 'invalid_json')
   }
 }
 
-export const parseCookies = (req) =>
-  Object.fromEntries(
-    (req.headers.cookie ?? '').split(';').flatMap((part) => {
-      const index = part.indexOf('=')
-      if (index < 0) {
-        return []
-      }
-      return [[part.slice(0, index).trim(), decodeURIComponent(part.slice(index + 1).trim())]]
-    })
-  )
+export function cookieValue(req, name) {
+  const cookie = (req.headers.cookie ?? '')
+    .split(/;\s*/)
+    .find((part) => part.startsWith(`${name}=`))
+  return cookie?.slice(name.length + 1)
+}
 
-export async function authenticate(req, store) {
-  const token = parseCookies(req).continuity_session
-  if (!token) {
-    return null
+export function cookie(settings, name, token, maxAge) {
+  const secure = new URL(settings.publicUrl).protocol === 'https:' ? '; Secure' : ''
+  return `${name}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure}`
+}
+
+export function redirect(res, url, cookies = []) {
+  res.writeHead(303, {
+    Location: url,
+    'Set-Cookie': cookies,
+    'Cache-Control': 'no-store',
+    'Referrer-Policy': 'no-referrer',
+  })
+  res.end()
+}
+
+export function checkSameOrigin(req, settings) {
+  const origin = req.headers.origin
+  if (origin && origin !== new URL(settings.publicUrl).origin) {
+    throw new HttpError(403, '请求来源不受信任', 'origin_mismatch')
   }
-  const tokenHash = hashToken(token)
-  const session = store.read((data) => data.sessions.find((item) => item.tokenHash === tokenHash))
-  if (!session || session.expiresAt < Date.now()) {
-    return null
-  }
-  return store.read((data) => data.users.find((item) => item.id === session.userId)) ?? null
 }
 
 export async function requireUser(req, store) {
-  const user = await authenticate(req, store)
+  const token = cookieValue(req, 'continuity_session')
+  const user = token && (await store.session(hashToken(token)))
   if (!user) {
-    throw new HttpError(401, '请先登录', 'unauthorized')
+    throw new HttpError(401, '请先登录 UniGate', 'unauthorized')
   }
   return user
 }
-
-export const sessionCookie = (token, maxAge = 30 * 24 * 60 * 60) =>
-  [
-    `continuity_session=${encodeURIComponent(token)}`,
-    'HttpOnly',
-    'SameSite=Lax',
-    'Path=/',
-    `Max-Age=${maxAge}`,
-    config.cookieSecure ? 'Secure' : '',
-  ]
-    .filter(Boolean)
-    .join('; ')
-
-export const checkSameOrigin = (req) => {
-  const origin = req.headers.origin
-  if (!origin) {
-    return
-  }
-  try {
-    if (new URL(origin).host !== req.headers.host) {
-      throw new HttpError(403, '请求来源不受信任', 'origin_mismatch')
-    }
-  } catch (error) {
-    if (error instanceof HttpError) {
-      throw error
-    }
-    throw new HttpError(403, '请求来源无效', 'origin_mismatch')
-  }
-}
-
-export const requestFingerprint = (req) =>
-  createHash('sha256')
-    .update(req.socket.remoteAddress ?? 'unknown')
-    .digest('hex')

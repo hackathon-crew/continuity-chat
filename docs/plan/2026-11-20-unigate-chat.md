@@ -12,8 +12,8 @@
 
 1. **账户和计费全部交给 UniGate。** UniGate 增加 OAuth2 授权码加 PKCE，只登记 Unigate Chat 一个第一方客户端。用户首次登录后，后端用他的身份在 UniGate 建一把名为 Unigate Chat 的 key，加密存在服务端；所有模型请求走 `unigate.top/v1` 并带上这把 key，计费和扣余额由 UniGate 现有逻辑完成。余额、用量、充值页直接读 UniGate 接口，充值跳转 UniGate。现仓库里的套餐、Stripe、演示支付、本地账号全部删除。
 2. **前端照 mock 重做。** 换成 React 19 + Vite，`mock/src/everplain`、`mock/src/inkpaw` 的组件和样式整体搬进正式前端，页面结构照 `mock/src/app`。chat-demo 的旧界面删掉，只保留历史导入模块。mock 和 Everplain 原件不一样的几处写在 `mock/README.md`，照 mock 来。
-3. **Personal Agent 自己做轻量版，结构借 superagent，产品形态参照 Muse。** 每个用户一个长期在的 agent，有名字和形象，记忆用户能看能改，会主动来问进展。通用部分都用成熟的库：agent 循环用 Vercel AI SDK 的工具调用，模型请求带用户的 UniGate key；定时和主动消息用 pg-boss（基于 PostgreSQL，有 cron 和重试），到点往 agent 消息流里推一条。持续推进照 superagent 的结构：每件事是一个任务，被三种来源唤醒（用户在 agent 页发消息、普通对话里「交给团子」、定时到期），醒来往前做一步，需要人时才开口，做完挂文件卡，对应 mock 里的任务与提醒抽屉。
-4. **第一版工具。** 联网搜索用 Tavily，PPT 用 pptxgenjs 生成可编辑的 .pptx，另外内置网页读取、记忆读写、设提醒；用户自己的工具走 MCP，不自定义工具协议。普通对话和团子共用同一套工具。
+3. **Personal Agent 自己做轻量版，结构借 superagent，产品形态参照 Muse。** 每个用户一个长期在的 agent，有名字和形象，记忆用户能看能改，会主动来问进展。通用部分都用成熟的库：agent 循环用 Vercel AI SDK 的工具调用，模型请求带用户的 UniGate key；定时和主动消息用 pg-boss（基于 PostgreSQL，有 cron 和重试），到点往 agent 消息流里推一条。持续推进照 superagent 的结构：每件事是一个任务，被三种来源唤醒（用户在 agent 页发消息、普通对话里「交给 Uni 」、定时到期），醒来往前做一步，需要人时才开口，做完挂文件卡，对应 mock 里的任务与提醒抽屉。
+4. **第一版工具。** 联网搜索用 Tavily，PPT 用 pptxgenjs 生成可编辑的 .pptx，另外内置网页读取、记忆读写、设提醒；用户自己的工具走 MCP，不自定义工具协议。普通对话和Uni共用同一套工具。
 5. **存储用 PostgreSQL。** 对话、agent 消息、记忆、任务存自己的库，和 UniGate 的库分开。现在的 JSON 文件和 IndexedDB 只在迁移时读一次。
 
 ## 分 PR 做
@@ -27,7 +27,7 @@
 
 ## 完成标准
 
-新用户用 UniGate 账号登录，不填任何 key，导入一份真实的 DeepSeek ZIP，打开其中一段接着聊，用量出现在 UniGate 控制台并扣了余额；在普通对话里把一件事交给团子，团子做完后主动在自己那里发消息并附上 PPT。
+新用户用 UniGate 账号登录，不填任何 key，导入一份真实的 DeepSeek ZIP，打开其中一段接着聊，用量出现在 UniGate 控制台并扣了余额；在普通对话里把一件事交给 Uni ，Uni做完后主动在自己那里发消息并附上 PPT。
 
 ## 要拍板的
 

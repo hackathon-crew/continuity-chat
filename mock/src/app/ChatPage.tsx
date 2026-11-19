@@ -128,7 +128,7 @@ export function ChatPage({ conversation, balance, onSend, onModelChange, onOpenA
       accept=".pdf,.docx,.txt,.md,.png,.jpg"
       attachments={[]}
       tools={tools}
-      context={handoff ? <div className="xb-composer-chip"><OctoMark size={18} /><span>这一条交给{agent.name}，它做好会在自己那里告诉你</span><button type="button" className="qx-btn qx-btn--ghost qx-btn--icon" aria-label="取消交给团子" onClick={() => setHandoff(false)}><XIcon /></button></div> : undefined}
+      context={handoff ? <div className="xb-composer-chip"><OctoMark size={18} /><span>这一条交给{agent.name}，它做好会在自己那里告诉你</span><button type="button" className="qx-btn qx-btn--ghost qx-btn--icon" aria-label="取消交给 Uni " onClick={() => setHandoff(false)}><XIcon /></button></div> : undefined}
       modelSelector={<div className="xb-composer-meta">
         {search ? <button type="button" className="qx-tag xb-search-tag" aria-pressed="true" aria-label="关闭联网搜索" onClick={() => setSearch(false)}><GlobeIcon aria-hidden="true" />联网</button> : null}
         <ModelPicker value={conversation.model} onChange={onModelChange} balance={balance} />

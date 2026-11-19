@@ -72,13 +72,13 @@ export function ImportDialog({ onClose, onImported, initialStep = 'pick' }: { on
       {step === 'importing' ? <div className="xb-import__state" role="status">
         <progress className="cv-research-flow__progress" max={chosen.length} value={progress} />
         <strong>正在整理「{chosen[Math.min(progress, chosen.length - 1)]?.title}」</strong>
-        <span className="qx-meta">{progress} / {chosen.length} · 同时从对话里整理团子需要记住的事</span>
+        <span className="qx-meta">{progress} / {chosen.length} · 同时从对话里整理Uni需要记住的事</span>
       </div> : null}
 
       {step === 'done' ? <div className="xb-import__state">
         <CheckCircleIcon className="xb-import__done" aria-hidden="true" />
         <strong>导入了 {chosen.length} 个对话</strong>
-        <span className="qx-meta">团子从里面记下了 3 件事，可以在设定里查看和修改</span>
+        <span className="qx-meta">Uni从里面记下了 3 件事，可以在设定里查看和修改</span>
         <button type="button" className="qx-btn qx-btn--primary" onClick={() => onImported(chosen.map(item => item.id))}>去看看</button>
       </div> : null}
     </div>

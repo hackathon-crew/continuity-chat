@@ -19,7 +19,7 @@
 .xb-model-mark > i { display: block; background: currentColor; mask-position: center; mask-repeat: no-repeat; mask-size: contain; }
 .xb-octo-mark { display: block; flex: none; object-fit: contain; }
 
-/* ---- 输入框旁的模型选择、联网标记、交给团子 ---- */
+/* ---- 输入框旁的模型选择、联网标记、交给 Uni  ---- */
 .xb-composer-meta { display: flex; align-items: center; gap: var(--qx-space-1); min-width: 0; }
 .xb-search-tag > svg { width: 1.1em; height: 1.1em; }
 .xb-picker { position: relative; min-width: 0; }
@@ -43,7 +43,7 @@
 .xb-danger-item, .xb-danger-item > svg { color: var(--qx-color-danger); }
 .xb-danger-item:hover { color: var(--qx-color-danger); background: var(--qx-color-danger-soft); }
 
-/* ---- 对话里的导入来源和交给团子的任务卡 ---- */
+/* ---- 对话里的导入来源和交给 Uni 的任务卡 ---- */
 .xb-provenance { flex-wrap: wrap; }
 .xb-provenance > span { color: var(--qx-color-faint); }
 .xb-task { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--qx-space-3); width: 100%; padding: var(--qx-space-4) var(--qx-space-5); border: 1px solid var(--qx-color-rule); border-radius: var(--qx-radius-card); color: var(--qx-color-ink-soft); background: var(--qx-color-surface); font-family: var(--qx-font-ui); text-align: left; cursor: pointer; }

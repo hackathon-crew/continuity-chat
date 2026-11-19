@@ -31,7 +31,7 @@ export type Conversation = {
   turns: Turn[]
 }
 
-export const agent = { name: '团子', persona: '说话短，先接住情绪再给建议；记得我的考试、面试和组会时间；不替我做决定。' }
+export const agent = { name: 'Uni', persona: '说话短，先接住情绪再给建议；记得我的考试、面试和组会时间；不替我做决定。' }
 
 export const user = { name: '林夏', account: 'linxia@unigate', balance: 36.2, monthSpend: 18.74 }
 
@@ -69,7 +69,7 @@ export const conversations: Conversation[] = [
       {
         id: 'w2',
         question: '再帮我把它做成 5 页 PPT，周五组会用。',
-        answer: '交给团子去做了，它会按「本周结果、访谈发现、原型变化、风险、下周计划」排成 5 页，做好放到它那边。',
+        answer: '交给 Uni 去做了，它会按「本周结果、访谈发现、原型变化、风险、下周计划」排成 5 页，做好放到它那边。',
         task: { title: '周报做成 5 页 PPT', status: 'running' },
       },
     ],

@@ -61,7 +61,7 @@ export function App() {
     else root.setAttribute('data-color-scheme', scheme)
   }, [scheme])
 
-  // 周报 PPT 是一个正在跑的后台任务：开页 25 秒后完成，团子主动来报。
+  // 周报 PPT 是一个正在跑的后台任务：开页 25 秒后完成，Uni主动来报。
   useEffect(() => {
     later(() => {
       setChats(list => list.map(chat => ({ ...chat, turns: chat.turns.map(turn => turn.task ? { ...turn, task: { ...turn.task, status: 'done' } } : turn) })))
@@ -149,7 +149,7 @@ export function App() {
     [`${agent.name}（Personal Agent）`, () => go({ kind: 'agent' })],
     [`${agent.name}：任务与提醒`, () => { go({ kind: 'agent' }); setJobsSignal(value => value + 1) }],
     ['新对话（空状态）', newChat],
-    ['普通对话：交给团子的任务卡', () => go({ kind: 'chat', id: 'weekly' })],
+    ['普通对话：交给 Uni 的任务卡', () => go({ kind: 'chat', id: 'weekly' })],
     ['普通对话：联网搜索步骤', () => go({ kind: 'chat', id: 'cat' })],
     ['从 DeepSeek 导入的对话', () => go({ kind: 'chat', id: 'rain-store' })],
     ['导入：选择文件', () => openImport('pick')],

@@ -39,7 +39,6 @@ function TurnView({ turn, provider, onOpenAgent }: { turn: Turn; provider: Retur
   return <article style={{ '--agent-color': 'var(--qx-color-data-blue)' } as CSSProperties} className="cv-turn" data-streaming={turn.streaming || undefined}>
     <div className="cv-turn__question"><div className="cv-turn__question-content"><div ref={bubble} className="qx-bubble">{turn.question}</div></div></div>
     <div className="cv-turn__answer">
-      <div className="cv-turn__avatar"><ModelMark provider={provider} /></div>
       <div className="cv-turn__body">
         <ConversationThinking turn={turn} />
         <ConversationActivity steps={steps} />

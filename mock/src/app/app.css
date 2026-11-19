@@ -58,7 +58,8 @@
 .application-frame { --application-sidebar-width: var(--qx-outline-width); }
 .application-frame[data-split-rail='false'] .application-sidebar__top > .application-brand.xb-brand-link { left: var(--qx-space-2); }
 .xb-agent-item__mark { display: grid; place-items: center; overflow: visible; }
-.xb-agent-item__mark > img { width: var(--qx-space-6); height: auto; }
+.xb-agent-item__mark > img { width: var(--qx-space-5); height: auto; }
+.cv-turn__answer { grid-template-columns: minmax(0, 1fr); }
 .application-sidebar .qx-group-label { margin: var(--qx-space-6) 0 var(--qx-space-1); padding-inline: var(--qx-space-2); font-size: var(--qx-text-control); }
 .xb-history-group:first-child .qx-group-label { margin-top: var(--qx-space-2); }
 .xb-history-item { gap: var(--qx-space-2); }

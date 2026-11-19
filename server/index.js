@@ -5,6 +5,8 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
+import { downloadConversationFile, importConversation } from './archive.js'
+import { streamTurn } from './chat.js'
 import { billing, finishLogin, logout, publicUser, startLogin } from './auth.js'
 import { config, validateConfig } from './config.js'
 import {
@@ -100,6 +102,18 @@ async function api(req, res, url, services) {
     if (method === 'POST') {
       return sendJson(res, 201, await createConversation(store.db, user.id, await readJson(req)))
     }
+  }
+
+  if (method === 'POST' && pathname === '/api/conversations/import') {
+    return importConversation(req, res, store, user)
+  }
+  const streamId = /^\/api\/conversations\/([^/]+)\/turns$/.exec(pathname)?.[1]
+  if (method === 'POST' && streamId && uuidPattern.test(streamId)) {
+    return streamTurn(req, res, streamId, user, services)
+  }
+  const file = /^\/api\/conversations\/([^/]+)\/files\/([^/]+)$/.exec(pathname)
+  if (method === 'GET' && file && uuidPattern.test(file[1])) {
+    return downloadConversationFile(res, store.db, user.id, file[1], decodeURIComponent(file[2]))
   }
 
   const id = /^\/api\/conversations\/([^/]+)$/.exec(pathname)?.[1]

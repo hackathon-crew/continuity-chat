@@ -11,7 +11,11 @@ export const conversationSummary = (row) => ({
   createdAt: row.created_at.toISOString(),
   updatedAt: row.updated_at.toISOString(),
   imported: row.source
-    ? { messages: row.origin?.messages?.length ?? 0, last: row.updated_at.toISOString() }
+    ? {
+        messages: row.origin?.messages?.length ?? 0,
+        source: row.source,
+        last: new Date(row.origin.updatedAt).toISOString(),
+      }
     : undefined,
 })
 
@@ -23,11 +27,11 @@ export async function listConversations(db, userId) {
   return rows.map(conversationSummary)
 }
 
-export async function findConversation(db, userId, id) {
-  const { rows } = await db.query('SELECT * FROM conversations WHERE user_id = $1 AND id = $2', [
-    userId,
-    id,
-  ])
+export async function findConversation(db, userId, id, lock = false) {
+  const { rows } = await db.query(
+    `SELECT * FROM conversations WHERE user_id = $1 AND id = $2${lock ? ' FOR UPDATE' : ''}`,
+    [userId, id]
+  )
   if (!rows[0]) {
     throw new HttpError(404, '对话不存在', 'not_found')
   }

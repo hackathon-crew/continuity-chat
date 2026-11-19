@@ -1,37 +1,29 @@
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 
-const children = []
-const run = (command, args, env = {}) => {
-  const child = spawn(command, args, {
-    stdio: 'inherit',
-    env: { ...process.env, PORT: '3080', PUBLIC_URL: 'http://localhost:8090', ...env },
-  })
-  children.push(child)
-  return child
+if (existsSync('.env')) {
+  process.loadEnvFile('.env')
 }
 
-const server = run(process.execPath, ['--env-file-if-exists=.env', 'server/index.js'])
-const web = run('pnpm', ['exec', 'rspack', 'serve', '-c', 'rspack.config.ts'])
-let closing = false
+const publicPort = process.env.PORT ?? '3080'
+const backendPort = Number(publicPort) + 1
+const env = {
+  ...process.env,
+  PORT: String(backendPort),
+  PUBLIC_URL: process.env.PUBLIC_URL ?? `http://localhost:${publicPort}`,
+  UNIGATE_CHAT_DEV_BACKEND: `http://127.0.0.1:${backendPort}`,
+}
+const children = [
+  spawn(process.execPath, ['server/index.js'], { stdio: 'inherit', env }),
+  spawn('pnpm', ['exec', 'vite', '--port', publicPort], { stdio: 'inherit', env }),
+]
 
-const close = (code = 0) => {
-  if (closing) {
-    return
-  }
-  closing = true
+function close(code = 0) {
+  process.exitCode = code
   children.forEach((child) => child.kill('SIGTERM'))
-  setTimeout(() => process.exit(code), 100).unref()
 }
-
-server.on('exit', (code) => {
-  if (!closing && code) {
-    close(code)
-  }
-})
-web.on('exit', (code) => {
-  if (!closing) {
-    close(code ?? 0)
-  }
-})
-process.on('SIGINT', () => close())
-process.on('SIGTERM', () => close())
+for (const child of children) {
+  child.once('exit', (code) => close(code ?? process.exitCode ?? 0))
+}
+process.once('SIGINT', () => close())
+process.once('SIGTERM', () => close())

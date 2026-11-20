@@ -1,12 +1,13 @@
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
-import { SettingsModal } from '../everplain/app/ui/SettingsModal'
-import '../everplain/app/ui/settings-modal.css'
-import { AgentSettings, ToolsSettings } from './AgentSettings'
-import { displayDate, type Billing, type User } from './data'
-import type { useUni } from './useUni'
+import { SettingsModal } from '../vendor/everplain/app/ui/SettingsModal'
+import '../vendor/everplain/app/ui/settings-modal.css'
+import { AgentSettings, ToolsSettings } from '../modules/agent/AgentSettings'
+import type { Billing, User } from '../../contract/types'
+import { displayDate } from '../shared/displayDate'
+import type { useAgent } from '../modules/agent/useAgent'
+import type { Scheme } from './useTheme'
 
 export type SettingsTab = 'agent' | 'tools' | 'account' | 'appearance'
-export type Scheme = 'system' | 'light' | 'dark'
 
 function AccountTab({
   user,
@@ -177,7 +178,7 @@ export function SettingsDialog({
   user: User
   billing?: Billing
   onBillingPage: (page: number) => void
-  uni: ReturnType<typeof useUni>
+  uni: ReturnType<typeof useAgent>
   onSignOut: () => void
 }) {
   const tabs: [SettingsTab, string][] = [

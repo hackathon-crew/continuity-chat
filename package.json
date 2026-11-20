@@ -7,13 +7,14 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "dev:fake": "node scripts/fake-unigate.ts",
     "build": "vite build",
-    "start": "NODE_ENV=production node --env-file-if-exists=.env server/index.js",
-    "type": "tsc -p tsconfig.json",
-    "lint": "oxlint src server scripts --ignore-pattern 'src/everplain/**' --ignore-pattern 'src/inkpaw/**'",
+    "start": "NODE_ENV=production node --env-file-if-exists=.env server/index.ts",
+    "type": "tsc -p tsconfig.json && tsc -p tsconfig.server.json",
+    "lint": "oxlint src server scripts --ignore-pattern 'src/vendor/everplain/**' --ignore-pattern 'src/vendor/inkpaw/**'",
     "format": "oxfmt --write .",
-    "import:legacy": "node --env-file-if-exists=.env scripts/import-legacy.mjs",
-    "test": "node --test server/test/*.test.js"
+    "import:legacy": "node --env-file-if-exists=.env scripts/import-legacy.ts",
+    "test": "node --test server/test/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/mcp": "2.0.101",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@types/hast": "3.0.4",
     "@types/node": "~22.20.5",
+    "@types/pg": "8.23.1",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "@types/three": "0.180.0",

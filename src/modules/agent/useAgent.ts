@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { encodeBlob, json } from '../../shared/api'
-import type {
-  AgentItem,
-  AgentJob,
-  AgentProfile,
-  AgentState,
-  Tool,
-} from '../../../contract/types'
+import type { AgentItem, AgentJob, AgentProfile, AgentState, Tool } from '../../../contract/types'
 
 const agent: AgentProfile = {
   name: 'Uni',
@@ -26,7 +20,7 @@ const initial: AgentState = {
 const pollMs = 2000
 const celebrationMs = 2200
 
-export function useUni(
+export function useAgent(
   userId: string | undefined,
   report: (message: string) => void,
   onResult: () => void

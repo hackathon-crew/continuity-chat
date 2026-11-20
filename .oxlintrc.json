@@ -119,5 +119,71 @@
     "react/no-unknown-property": "error",
     "react/rules-of-hooks": "off",
     "react/exhaustive-deps": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/shared/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(?:\\.{1,2}/)+(?:app|modules)(?:/|$)",
+                "message": "Shared code cannot depend on the app or modules."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/modules/chat/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(?:\\.{1,2}/)+(?:app|(?:modules/)?(?:agent|import))(?:/|$)",
+                "message": "Compose chat with other modules in src/app."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/modules/agent/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(?:\\.{1,2}/)+(?:app|(?:modules/)?(?:chat|import))(?:/|$)",
+                "message": "Compose the agent with other modules in src/app."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/modules/import/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(?:\\.{1,2}/)+(?:app|(?:modules/)?(?:agent|chat))(?:/|$)",
+                "message": "Compose import with other modules in src/app."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

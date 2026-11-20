@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 
-if (existsSync('.env')) {
+const fake = process.argv.includes('--fake')
+if (!fake && existsSync('.env')) {
   process.loadEnvFile('.env')
 }
 
@@ -13,9 +14,15 @@ const env = {
   PUBLIC_URL: process.env.PUBLIC_URL ?? `http://localhost:${publicPort}`,
   UNIGATE_CHAT_DEV_BACKEND: `http://127.0.0.1:${backendPort}`,
 }
+const viteArgs = ['--port', publicPort]
 const children = [
   spawn(process.execPath, ['server/index.ts'], { stdio: 'inherit', env }),
-  spawn('pnpm', ['exec', 'vite', '--port', publicPort], { stdio: 'inherit', env }),
+  fake
+    ? spawn(process.execPath, ['node_modules/vite/bin/vite.js', ...viteArgs], {
+        stdio: 'inherit',
+        env,
+      })
+    : spawn('pnpm', ['exec', 'vite', ...viteArgs], { stdio: 'inherit', env }),
 ]
 
 /** @param {number | string} [code] */

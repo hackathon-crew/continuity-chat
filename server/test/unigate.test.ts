@@ -1,3 +1,7 @@
+import type { AddressInfo } from 'node:net'
+import type { Billing, UsageRow } from '../../contract/types.ts'
+import { config } from '../config.ts'
+import type { CoreServices, UserRow } from '../types.ts'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
@@ -5,7 +9,7 @@ import test from 'node:test'
 
 test('UniGate requests use only the selected user key and preserve streaming frames', async (t) => {
   const { UniGateClient } = await import('../unigate.ts')
-  const seen = []
+  const seen: { auth?: string; path?: string }[] = []
   const upstream = createServer((req, res) => {
     seen.push({ auth: req.headers.authorization, path: req.url })
     res.writeHead(200, { 'Content-Type': 'text/event-stream' })
@@ -14,7 +18,10 @@ test('UniGate requests use only the selected user key and preserve streaming fra
   }).listen(0, '127.0.0.1')
   t.after(() => upstream.close())
   await once(upstream, 'listening')
-  const client = new UniGateClient({ gatewayUrl: `http://127.0.0.1:${upstream.address().port}/v1` })
+  const client = new UniGateClient({
+    ...config,
+    gatewayUrl: `http://127.0.0.1:${(upstream.address() as AddressInfo).port}/v1`,
+  })
   const res = await client.model('/chat/completions', 'first-user', {
     method: 'POST',
     body: JSON.stringify({ model: 'test-model', messages: [], stream: true }),
@@ -52,23 +59,23 @@ test('billing responses expose usage numbers without API credentials', async (t)
   const upstream = createServer((_req, res) => {
     void billing(
       res,
-      { id: '1' },
+      { id: '1' } as UserRow,
       {
         unigate: {
           accessFor: async () => 'upstream-access-token',
-          account: async (path) => raw[path.split('?')[0]],
+          account: async (path: string) => raw[path.split('?')[0] as keyof typeof raw],
         },
         store: null,
         settings: { consoleUrl: 'https://unigate.example' },
-      },
+      } as unknown as CoreServices,
       1
     )
   }).listen(0, '127.0.0.1')
   t.after(() => upstream.close())
   await once(upstream, 'listening')
-  const res = await fetch(`http://127.0.0.1:${upstream.address().port}`)
-  const data = await res.json()
+  const res = await fetch(`http://127.0.0.1:${(upstream.address() as AddressInfo).port}`)
+  const data = (await res.json()) as Billing
   assert.equal(data.monthSpend, 0.5)
   assert.equal(data.usage.items[0].actual_cost, 0.5)
-  assert.equal(data.usage.items[0].api_key, undefined)
+  assert.equal((data.usage.items[0] as UsageRow & { api_key?: unknown }).api_key, undefined)
 })

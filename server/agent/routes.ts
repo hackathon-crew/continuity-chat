@@ -1,3 +1,8 @@
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { AgentState } from '../../contract/types.ts'
+import type { Config } from '../config.ts'
+import type { PostgresStore } from '../store.ts'
+import type { AttachmentInput, Db, DialogueMessage, Services, UserRow } from '../types.ts'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { newAttachment } from '../archive.ts'
@@ -27,7 +32,7 @@ const profilePatch = z.object({
 })
 const textSchema = z.string().trim().min(1).max(8_000)
 
-function validate(schema, value) {
+function validate<T>(schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value)
   if (!parsed.success) {
     throw new HttpError(400, '内容格式无效，请检查输入', 'invalid_agent_input')
@@ -35,14 +40,19 @@ function validate(schema, value) {
   return parsed.data
 }
 
-async function agentState(store, user, settings) {
+async function agentState(
+  store: PostgresStore,
+  user: UserRow,
+  settings: Config
+): Promise<AgentState<Date>> {
   const profile = await agentProfile(store.db, user.id)
   const [state, memories, mcps] = await Promise.all([
     listAgentState(store.db, user.id),
     agentMemories(store.db, user.id),
-    store.db.query('SELECT id,url FROM agent_mcp_servers WHERE user_id = $1 ORDER BY id', [
-      user.id,
-    ]),
+    store.db.query<{ id: string; url: string }>(
+      'SELECT id,url FROM agent_mcp_servers WHERE user_id = $1 ORDER BY id',
+      [user.id]
+    ),
   ])
   return {
     ...state,
@@ -58,8 +68,8 @@ async function agentState(store, user, settings) {
   }
 }
 
-async function agentFile(res, db, userId, id) {
-  const { rows } = await db.query(
+async function agentFile(res: ServerResponse, db: Db, userId: string, id: string) {
+  const { rows } = await db.query<{ name: string; content: Buffer }>(
     'SELECT name,content FROM agent_files WHERE id = $1 AND user_id = $2',
     [id, userId]
   )
@@ -77,14 +87,28 @@ async function agentFile(res, db, userId, id) {
   res.end(file.content)
 }
 
-export async function routeAgent(req, res, path, user, { store, settings, agent }) {
+type SendInput = {
+  text: unknown
+  model: unknown
+  messageId: string
+  taskId?: string
+  files?: AttachmentInput[]
+}
+
+export async function routeAgent(
+  req: IncomingMessage,
+  res: ServerResponse,
+  path: string,
+  user: UserRow,
+  { store, settings, agent }: Services
+) {
   const db = store.db
   const method = req.method
   if (method === 'GET' && path === '/api/agent') {
     return sendJson(res, 200, await agentState(store, user, settings))
   }
   if (method === 'POST' && path === '/api/agent/messages') {
-    const body = await readJson(req, 16 * 1024 * 1024)
+    const body = await readJson<SendInput>(req, 16 * 1024 * 1024)
     const text = validate(textSchema, body.text)
     const model = modelOf(body.model)
     if (
@@ -95,7 +119,7 @@ export async function routeAgent(req, res, path, user, { store, settings, agent 
       throw new HttpError(400, '请先选择可用模型', 'invalid_agent_input')
     }
     const files = Array.isArray(body.files) ? body.files.slice(0, 8).map(newAttachment) : []
-    const context = files.length
+    const context: DialogueMessage[] = files.length
       ? [
           {
             role: 'user',

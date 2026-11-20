@@ -1,4 +1,5 @@
-import { createServer } from 'node:http'
+import type { Services, UserRow } from './types.ts'
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
@@ -10,7 +11,7 @@ import { routeAgent } from './agent/routes.ts'
 import { downloadConversationFile, importConversation } from './archive.ts'
 import { streamTurn } from './chat.ts'
 import { billing, finishLogin, logout, publicUser, startLogin } from './auth.ts'
-import { config, validateConfig } from './config.ts'
+import { config, validateConfig, type Config } from './config.ts'
 import {
   createConversation,
   deleteConversation,
@@ -38,7 +39,13 @@ const openAIPaths = new Map([
   ['/v1/chat/completions', 'POST'],
 ])
 
-async function proxyModel(req, res, url, user, { unigate, store }) {
+async function proxyModel(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  user: UserRow,
+  { unigate, store }: Services
+) {
   const method = openAIPaths.get(url.pathname)
   if (method !== req.method) {
     throw new HttpError(404, '模型接口不存在', 'not_found')
@@ -63,11 +70,11 @@ async function proxyModel(req, res, url, user, { unigate, store }) {
   }
 }
 
-async function api(req, res, url, services) {
+async function api(req: IncomingMessage, res: ServerResponse, url: URL, services: Services) {
   const { settings, store } = services
   const method = req.method
   const pathname = url.pathname
-  if (!['GET', 'HEAD'].includes(method)) {
+  if (method !== 'GET' && method !== 'HEAD') {
     checkSameOrigin(req, settings)
   }
 
@@ -141,7 +148,7 @@ async function api(req, res, url, services) {
   throw new HttpError(404, '请求的接口不存在', 'not_found')
 }
 
-const contentTypes = {
+const contentTypes: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript',
   '.css': 'text/css',
@@ -154,7 +161,7 @@ const contentTypes = {
   '.ico': 'image/x-icon',
 }
 
-async function staticPage(req, res, url, settings) {
+async function staticPage(req: IncomingMessage, res: ServerResponse, url: URL, settings: Config) {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     throw new HttpError(405, '请求方式不支持')
   }
@@ -188,11 +195,11 @@ export async function createApplication(settings = config) {
   validateConfig(settings)
   const store = new PostgresStore(settings)
   await store.init()
-  const services = { settings, store, unigate: new UniGateClient(settings) }
-  services.agent = await startAgent(services)
+  const core = { settings, store, unigate: new UniGateClient(settings) }
+  const services: Services = { ...core, agent: await startAgent(core) }
   const server = createServer(async (req, res) => {
     try {
-      const url = new URL(req.url, settings.publicUrl)
+      const url = new URL(req.url as string, settings.publicUrl)
       if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/v1/')) {
         await api(req, res, url, services)
       } else {

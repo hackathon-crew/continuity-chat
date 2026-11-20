@@ -1,13 +1,47 @@
+import type { ConversationToolStep, Memory } from '../../contract/types.ts'
+import type { Config } from '../config.ts'
+import type { PostgresStore } from '../store.ts'
+import type {
+  DialogueMessage,
+  ProfileRow,
+  ReminderSpec,
+  TaskRow,
+  TaskState,
+  UserRow,
+} from '../types.ts'
+import type { createPresentation } from './presentation.ts'
 import { createOpenAI } from '@ai-sdk/openai'
-import { stepCountIs, streamText } from 'ai'
+import { stepCountIs, streamText, type ModelMessage } from 'ai'
 import { connectTools, modelTools } from './tools.ts'
+
+export type ModelEffects = {
+  files: Awaited<ReturnType<typeof createPresentation>>[]
+  memories: Pick<Memory, 'id' | 'text'>[]
+  reminders: { title: string; message: string; at: string; repeat: ReminderSpec['repeat'] }[]
+  disposition: { status: Exclude<TaskState, 'running'>; at?: string } | null
+}
+
+type RunModelInput = {
+  store: PostgresStore
+  settings: Config
+  user: UserRow
+  profile: ProfileRow
+  memories: Memory[]
+  messages: DialogueMessage[]
+  model: string
+  search: boolean
+  task?: TaskRow
+  signal: AbortSignal
+  onDelta: (delta: string, partial: string) => void | Promise<void>
+  onStep: (step: ConversationToolStep) => void | Promise<void>
+}
 
 const maxSteps = 7
 
-function modelMessages(messages) {
+function modelMessages(messages: DialogueMessage[]): ModelMessage[] {
   return messages.map((message) => {
     if (!Array.isArray(message.content)) {
-      return message
+      return message as ModelMessage
     }
     return {
       ...message,
@@ -16,11 +50,11 @@ function modelMessages(messages) {
           ? { type: 'image', image: new URL(part.image_url.url) }
           : { type: 'text', text: part.text }
       ),
-    }
+    } as ModelMessage
   })
 }
 
-const labels = {
+const labels: Record<string, string> = {
   web_search: '联网搜索',
   read_web: '读取网页',
   create_presentation: '生成演示文稿',
@@ -30,10 +64,16 @@ const labels = {
   update_task: '更新任务',
 }
 
-function toolStep(part, status) {
+function toolStep(
+  part: { toolName: string; toolCallId: string; output?: unknown },
+  status: ConversationToolStep['status']
+): ConversationToolStep {
   const label = labels[part.toolName] ?? part.toolName
-  const results = Array.isArray(part.output) ? part.output : []
-  const detail = part.output?.name ?? part.output?.title
+  const results: { title: string; excerpt?: string }[] = Array.isArray(part.output)
+    ? part.output
+    : []
+  const output = part.output as { name?: string; title?: string } | undefined
+  const detail = output?.name ?? output?.title
   return {
     id: part.toolCallId,
     label,
@@ -59,8 +99,8 @@ export async function runModel({
   signal,
   onDelta,
   onStep,
-}) {
-  const effects = { files: [], memories: [], reminders: [], disposition: null }
+}: RunModelInput) {
+  const effects: ModelEffects = { files: [], memories: [], reminders: [], disposition: null }
   const local = modelTools({ settings, profile, memories, effects, search, task })
   const connected = await connectTools(store, user.id, (id) =>
     onStep({ id, label: '连接 MCP 服务', status: 'failed' })

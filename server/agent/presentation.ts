@@ -2,10 +2,15 @@ import { randomUUID } from 'node:crypto'
 import pptxgen from 'pptxgenjs'
 
 const palette = { paper: 'F7F5F0', ink: '212421', accent: '3D5650' }
+// The package declares a CommonJS namespace for its ESM default constructor.
+const Presentation = pptxgen as unknown as typeof import('pptxgenjs').default
+
 const fontFace = 'Microsoft YaHei'
 
-export async function createPresentation({ title, slides }) {
-  const deck = new pptxgen()
+type PresentationInput = { title: string; slides: { title: string; bullets: string[] }[] }
+
+export async function createPresentation({ title, slides }: PresentationInput) {
+  const deck = new Presentation() as InstanceType<typeof Presentation> & { lang: string }
   deck.layout = 'LAYOUT_WIDE'
   deck.title = title
   deck.author = 'Uni'
@@ -58,7 +63,7 @@ export async function createPresentation({ title, slides }) {
   return {
     id,
     name,
-    content: Buffer.from(await deck.write({ outputType: 'nodebuffer' })),
+    content: Buffer.from((await deck.write({ outputType: 'nodebuffer' })) as Buffer),
     pages: slides.length,
   }
 }

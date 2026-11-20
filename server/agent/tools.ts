@@ -1,6 +1,11 @@
+import type { Memory, Tool } from '../../contract/types.ts'
+import type { Config } from '../config.ts'
+import type { PostgresStore } from '../store.ts'
+import type { ProfileRow, TaskRow } from '../types.ts'
+import type { ModelEffects } from './model.ts'
 import { randomUUID } from 'node:crypto'
 import { createMCPClient } from '@ai-sdk/mcp'
-import { tool } from 'ai'
+import { tool, type ToolSet } from 'ai'
 import { z } from 'zod'
 import { createPresentation } from './presentation.ts'
 import { publicFetch, publicUrl, readWebPage } from './public-web.ts'
@@ -13,7 +18,7 @@ export const toolCatalog = [
   { id: 'set_reminder', name: '提醒', detail: '在指定时间向你发消息' },
 ]
 
-export function availableTools(settings, profile) {
+export function availableTools(settings: Config, profile: ProfileRow): Tool[] {
   return toolCatalog.map((item) => ({
     ...item,
     builtIn: true,
@@ -24,7 +29,7 @@ export function availableTools(settings, profile) {
   }))
 }
 
-async function tavilySearch(query, key, signal) {
+async function tavilySearch(query: string, key: string, signal?: AbortSignal) {
   const res = await fetch('https://api.tavily.com/search', {
     method: 'POST',
     redirect: 'error',
@@ -37,7 +42,9 @@ async function tavilySearch(query, key, signal) {
   if (!res.ok) {
     throw new Error('Tavily 搜索未完成，可以继续依据已有信息回答')
   }
-  const { results } = await res.json()
+  const { results } = (await res.json()) as {
+    results: { title: string; url: string; content: string }[]
+  }
   return results.map(({ title, url, content }) => ({ title, url, excerpt: content.slice(0, 800) }))
 }
 
@@ -48,13 +55,29 @@ const nextDate = z
   .datetime({ offset: true })
   .refine((value) => Date.parse(value) > Date.now(), 'Use a future date with an offset')
 
-export function modelTools({ settings, profile, memories, effects, search, task }) {
+type ModelToolsInput = {
+  settings: Config
+  profile: ProfileRow
+  memories: Memory[]
+  effects: ModelEffects
+  search: boolean
+  task?: TaskRow
+}
+
+export function modelTools({
+  settings,
+  profile,
+  memories,
+  effects,
+  search,
+  task,
+}: ModelToolsInput) {
   const enabled = new Set(
     availableTools(settings, profile)
       .filter((item) => item.on)
       .map((item) => item.id)
   )
-  const tools = {}
+  const tools: ToolSet = {}
   if (enabled.has('web_search') && search) {
     tools.web_search = tool({
       description: '搜索公开网页。用结果中的 URL 引用来源。',
@@ -140,15 +163,15 @@ export function modelTools({ settings, profile, memories, effects, search, task 
   return tools
 }
 
-async function openMcp(url, token) {
+async function openMcp(url: string, token?: string) {
   const target = publicUrl(url, true)
-  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
   return createMCPClient({
     transport: { type: 'http', url: target.href, headers, fetch: publicFetch },
   })
 }
 
-export async function verifyMcp(url, token) {
+export async function verifyMcp(url: string, token?: string) {
   const client = await openMcp(url, token)
   try {
     await client.tools()
@@ -157,13 +180,17 @@ export async function verifyMcp(url, token) {
   }
 }
 
-export async function connectTools(store, userId, onUnavailable) {
-  const { rows } = await store.db.query(
+export async function connectTools(
+  store: PostgresStore,
+  userId: string,
+  onUnavailable: (id: string) => void
+) {
+  const { rows } = await store.db.query<{ id: string; url: string; token: string | null }>(
     'SELECT id, url, token FROM agent_mcp_servers WHERE user_id = $1 ORDER BY id',
     [userId]
   )
-  const clients = []
-  const tools = {}
+  const clients: Awaited<ReturnType<typeof openMcp>>[] = []
+  const tools: ToolSet = {}
   for (const [index, server] of rows.entries()) {
     try {
       const token = server.token
@@ -175,7 +202,7 @@ export async function connectTools(store, userId, onUnavailable) {
       for (const [name, item] of Object.entries(discovered)) {
         const alias = `mcp_${index + 1}_${name.replace(/[^a-zA-Z0-9_-]/g, '_')}`.slice(0, 64)
         if (!tools[alias]) {
-          tools[alias] = item
+          tools[alias] = item as ToolSet[string]
         }
       }
     } catch {

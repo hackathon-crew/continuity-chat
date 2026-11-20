@@ -18,6 +18,7 @@ const children = [
   spawn('pnpm', ['exec', 'vite', '--port', publicPort], { stdio: 'inherit', env }),
 ]
 
+/** @param {number | string} [code] */
 function close(code = 0) {
   process.exitCode = code
   children.forEach((child) => child.kill('SIGTERM'))

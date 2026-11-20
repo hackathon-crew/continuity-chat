@@ -1,12 +1,24 @@
+import type { Config } from './config.ts'
+import type { PostgresStore } from './store.ts'
+import type { TokenSet, UserRow } from './types.ts'
 import { HttpError } from './http.ts'
 
 const clientId = 'unigate-chat'
 const oauthPath = '/api/v1/oauth/unigate-chat'
+type UniGateSettings = Pick<
+  Config,
+  'publicUrl' | 'consoleUrl' | 'apiUrl' | 'gatewayUrl' | 'oauthSecret'
+>
+type ModelRequest = Pick<RequestInit, 'method' | 'body' | 'signal'>
+type TokenResponse = { access_token: string; refresh_token: string; expires_in: number }
+
 const managementTimeoutMs = 15_000
 const tokenRefreshWindowMs = 30_000
 
 export class UniGateClient {
-  constructor(settings) {
+  declare readonly settings: UniGateSettings
+
+  constructor(settings: UniGateSettings) {
     this.settings = settings
   }
 
@@ -14,7 +26,7 @@ export class UniGateClient {
     return `${this.settings.publicUrl}/api/auth/callback`
   }
 
-  authorizeUrl(state, challenge) {
+  authorizeUrl(state: string, challenge: string) {
     const query = new URLSearchParams({
       client_id: clientId,
       response_type: 'code',
@@ -26,7 +38,7 @@ export class UniGateClient {
     return `${this.settings.consoleUrl}/oauth/authorize?${query}`
   }
 
-  exchange(code, verifier) {
+  exchange(code: string, verifier: string) {
     return this.token({
       grant_type: 'authorization_code',
       code,
@@ -35,7 +47,7 @@ export class UniGateClient {
     })
   }
 
-  async token(values) {
+  async token(values: Record<string, string>): Promise<TokenSet> {
     const auth = Buffer.from(`${clientId}:${this.settings.oauthSecret}`).toString('base64')
     const res = await fetch(`${this.settings.apiUrl}${oauthPath}/token`, {
       method: 'POST',
@@ -50,7 +62,7 @@ export class UniGateClient {
     if (!res.ok) {
       throw new HttpError(502, 'UniGate 授权服务暂不可用', 'unigate_unavailable')
     }
-    const data = await res.json()
+    const data = (await res.json()) as TokenResponse
     return {
       access: data.access_token,
       refresh: data.refresh_token,
@@ -58,7 +70,7 @@ export class UniGateClient {
     }
   }
 
-  async account(path, access, method = 'GET') {
+  async account<T>(path: string, access: string, method = 'GET'): Promise<T> {
     const res = await fetch(`${this.settings.apiUrl}${oauthPath}${path}`, {
       method,
       headers: { Authorization: `Bearer ${access}` },
@@ -74,10 +86,10 @@ export class UniGateClient {
     if (!res.ok) {
       throw new HttpError(502, 'UniGate 无法完成账户请求', 'unigate_unavailable')
     }
-    return (await res.json()).data
+    return ((await res.json()) as { data: T }).data
   }
 
-  model(path, key, { method = 'GET', body, signal } = {}) {
+  model(path: string, key: string, { method = 'GET', body, signal }: ModelRequest = {}) {
     return fetch(`${this.settings.gatewayUrl}${path}`, {
       method,
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -87,13 +99,13 @@ export class UniGateClient {
     })
   }
 
-  async accessFor(store, user) {
-    if (user.oauth_expires_at > Date.now() + tokenRefreshWindowMs) {
+  async accessFor(store: PostgresStore, user: UserRow) {
+    if (+user.oauth_expires_at > Date.now() + tokenRefreshWindowMs) {
       return store.secret(user, 'oauth_access')
     }
     return store.transaction(async (db) => {
       const current = await store.user(user.id, db, true)
-      if (current.oauth_expires_at > Date.now() + tokenRefreshWindowMs) {
+      if (+current.oauth_expires_at > Date.now() + tokenRefreshWindowMs) {
         return store.secret(current, 'oauth_access')
       }
       const tokens = await this.token({

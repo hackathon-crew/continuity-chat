@@ -65,7 +65,11 @@ export type UsageRow = {
 }
 export type AgentProfile = { name: string; persona: string; proactive: boolean; timezone: string }
 
-export type AgentItem = { id: string; createdAt?: string; taskId?: string } & (
+export type AgentItem<Timestamp = string> = {
+  id: string
+  createdAt?: Timestamp
+  taskId?: string | null
+} & (
   | { kind: 'time'; id: string; label: string }
   | { kind: 'agent'; id: string; text: string; streaming?: boolean }
   | { kind: 'user'; id: string; text: string; live?: boolean }
@@ -83,13 +87,13 @@ export type AgentItem = { id: string; createdAt?: string; taskId?: string } & (
     }
 )
 
-export type AgentJob = {
+export type AgentJob<Timestamp = string> = {
   id: string
   title: string
   state: 'running' | 'scheduled' | 'done' | 'waiting' | 'failed'
   source: 'agent' | 'chat' | 'timer' | 'legacy'
-  dueAt?: string
-  updatedAt: string
+  dueAt?: Timestamp | null
+  updatedAt: Timestamp
   enabled: boolean
   reminder: boolean
 }
@@ -103,10 +107,10 @@ export type Tool = {
   available: boolean
   on: boolean
 }
-export type AgentState = {
+export type AgentState<Timestamp = string> = {
   profile: AgentProfile
-  items: AgentItem[]
-  jobs: AgentJob[]
+  items: AgentItem<Timestamp>[]
+  jobs: AgentJob<Timestamp>[]
   memories: Memory[]
   tools: Tool[]
   mcpServers: { id: string; url: string }[]

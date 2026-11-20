@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const port = Number(process.env.PORT ?? 3080)
-const withoutSlash = (url) => url.replace(/\/$/, '')
+const withoutSlash = (url: string) => url.replace(/\/$/, '')
 const consoleUrl = withoutSlash(process.env.UNIGATE_CONSOLE_URL ?? 'https://unigate.top')
 
 export const config = {
@@ -20,7 +20,11 @@ export const config = {
   tavilyKey: process.env.TAVILY_API_KEY ?? '',
 }
 
-export function validateConfig(settings) {
+export type Config = typeof config
+
+export function validateConfig(
+  settings: Config
+): asserts settings is Config & { databaseUrl: string } {
   if (!settings.databaseUrl) {
     throw new Error('DATABASE_URL is required')
   }
@@ -30,7 +34,7 @@ export function validateConfig(settings) {
   if (!/^[0-9a-f]{64}$/i.test(settings.encryptionKey)) {
     throw new Error('APP_ENCRYPTION_KEY must be 32 bytes encoded as hex')
   }
-  for (const key of ['publicUrl', 'consoleUrl', 'apiUrl', 'gatewayUrl']) {
+  for (const key of ['publicUrl', 'consoleUrl', 'apiUrl', 'gatewayUrl'] as const) {
     const url = new URL(settings[key])
     const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
     if (

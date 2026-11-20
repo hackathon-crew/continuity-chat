@@ -4,14 +4,29 @@ import { createTask, saveMemory } from '../server/agent/repository.ts'
 import { config } from '../server/config.ts'
 import { PostgresStore } from '../server/store.ts'
 
+type LegacyWorkspace = {
+  users: { id: string }[]
+  profiles?: Record<
+    string,
+    {
+      soul?: { personality?: string; speakingStyle?: string }
+      proactive?: { enabled?: boolean }
+      memories?: { enabled?: boolean; content?: unknown }[]
+    }
+  >
+  agentProfiles?: Record<string, { name?: string; mission?: string; instructions?: string }>
+  agentMessages?: { userId: string; content: unknown; role: string; createdAt: number }[]
+  tasks?: { userId: string; title: unknown; prompt: unknown; enabled?: boolean }[]
+}
+
 const [sourcePath, mappingPath, model] = process.argv.slice(2)
 if (!sourcePath || !mappingPath || !model || !config.databaseUrl) {
   throw new Error('Usage: pnpm import:legacy <store.json> <account-map.json> <UniGate model ID>')
 }
 
-const [legacy, mapping] = await Promise.all(
+const [legacy, mapping] = (await Promise.all(
   [sourcePath, mappingPath].map(async (file) => JSON.parse(await readFile(file, 'utf8')))
-)
+)) as [LegacyWorkspace, Record<string, unknown>]
 if (
   !Array.isArray(legacy.users) ||
   !mapping ||

@@ -1,7 +1,19 @@
+import type { ConversationToolStep } from '../../contract/types.ts'
+import type {
+  CoreServices,
+  Db,
+  DialogueMessage,
+  ProfileRow,
+  ReminderSpec,
+  StoredTurn,
+  TaskRow,
+  TaskSource,
+  UserRow,
+} from '../types.ts'
 import { randomUUID } from 'node:crypto'
-import { PgBoss } from 'pg-boss'
+import { PgBoss, type JobWithMetadata } from 'pg-boss'
 import { HttpError } from '../http.ts'
-import { runModel } from './model.ts'
+import { runModel, type ModelEffects } from './model.ts'
 import {
   agentMemories,
   agentProfile,
@@ -13,22 +25,37 @@ import {
 } from './repository.ts'
 import { nextReminder, quietUntil } from './time.ts'
 
+type TicketSource = Exclude<TaskSource, 'legacy'>
+type SendMessage = {
+  text: string
+  model: string
+  taskId?: string
+  messageId: string
+  context: DialogueMessage[]
+}
+
 const queueName = 'uni-task'
 const jobTimeout = 180_000
 const streamFlushMs = 350
 
-function reportError(error) {
-  process.stderr.write(`Uni task: ${error.message}\n`)
+function reportError(error: unknown) {
+  process.stderr.write(`Uni task: ${(error as Error).message}\n`)
 }
 
-export async function startAgent(services) {
+export async function startAgent(services: CoreServices) {
   const { settings, store } = services
   const boss = new PgBoss(settings.databaseUrl)
   boss.on('error', reportError)
   await boss.start()
   await boss.createQueue(queueName, { retryLimit: 1, retryDelay: 10, expireInSeconds: 210 })
 
-  async function enqueue(db, task, source, prompt, at) {
+  async function enqueue(
+    db: Db,
+    task: TaskRow,
+    source: TicketSource,
+    prompt: string,
+    at?: Date | null
+  ) {
     const id = randomUUID()
     await db.query('INSERT INTO agent_tickets (id, task_id, source, prompt) VALUES ($1,$2,$3,$4)', [
       id,
@@ -50,7 +77,13 @@ export async function startAgent(services) {
     }
   }
 
-  async function handoff(user, conversationId, turn, context, model) {
+  async function handoff(
+    user: UserRow,
+    conversationId: string,
+    turn: StoredTurn,
+    context: DialogueMessage[],
+    model: string
+  ) {
     const profile = await agentProfile(store.db, user.id)
     return store.transaction(async (db) => {
       const task = await createTask(db, user.id, {
@@ -63,7 +96,7 @@ export async function startAgent(services) {
         conversationId,
         turnId: turn.id,
       })
-      const receipt = {
+      const receipt: StoredTurn = {
         ...turn,
         answer: `交给 ${profile.name} 了。有结果时，它会在自己的对话里告诉你。`,
         streaming: false,
@@ -80,10 +113,10 @@ export async function startAgent(services) {
     })
   }
 
-  async function send(user, { text, model, taskId, messageId, context }) {
+  async function send(user: UserRow, { text, model, taskId, messageId, context }: SendMessage) {
     return store.transaction(async (db) => {
       await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [messageId])
-      const { rows } = await db.query(
+      const { rows } = await db.query<{ task_id: string }>(
         'SELECT task_id FROM agent_messages WHERE user_id = $1 AND id = $2',
         [user.id, messageId]
       )
@@ -119,7 +152,13 @@ export async function startAgent(services) {
     })
   }
 
-  async function publishEffects(db, user, model, effects, taskId = null) {
+  async function publishEffects(
+    db: Db,
+    user: UserRow,
+    model: string,
+    effects: ModelEffects,
+    taskId: string | null = null
+  ) {
     const attachments = []
     for (const file of effects.files) {
       await db.query('INSERT INTO agent_files (id,user_id,name,content) VALUES ($1,$2,$3,$4)', [
@@ -129,7 +168,7 @@ export async function startAgent(services) {
         file.content,
       ])
       const item = {
-        kind: 'file',
+        kind: 'file' as const,
         name: file.name,
         meta: `演示文稿 · ${file.pages} 页`,
         fileId: file.id,
@@ -163,11 +202,11 @@ export async function startAgent(services) {
     return attachments
   }
 
-  async function closeTicket(db, id) {
+  async function closeTicket(db: Db, id: string) {
     await db.query('UPDATE agent_tickets SET closed_at = now() WHERE id = $1', [id])
   }
 
-  async function deliverReminder(task, ticket, profile) {
+  async function deliverReminder(task: TaskRow, ticket: string, profile: ProfileRow) {
     await store.transaction(async (db) => {
       const current = await findTask(db, task.user_id, task.id)
       if (!current.enabled) {
@@ -183,11 +222,8 @@ export async function startAgent(services) {
         if (profile.proactive) {
           await appendItem(db, task.user_id, task.id, { kind: 'agent', text: task.prompt }, ticket)
         }
-        const next = nextReminder(
-          new Date(task.reminder.targetAt),
-          task.reminder.repeat,
-          profile.timezone
-        )
+        const reminder = task.reminder as ReminderSpec
+        const next = nextReminder(new Date(reminder.targetAt), reminder.repeat, profile.timezone)
         await updateTask(db, task, next ? 'scheduled' : 'done', next)
         if (next) {
           await enqueue(db, task, 'timer', task.prompt, next)
@@ -197,8 +233,8 @@ export async function startAgent(services) {
     })
   }
 
-  async function taskMessages(task, prompt, ticketId) {
-    const { rows } = await store.db.query(
+  async function taskMessages(task: TaskRow, prompt: string, ticketId: string) {
+    const { rows } = await store.db.query<{ payload: { kind: 'agent' | 'user'; text: string } }>(
       `
       SELECT payload FROM (
         SELECT payload, sequence, created_at FROM agent_messages
@@ -211,9 +247,9 @@ export async function startAgent(services) {
     `,
       [task.id, ticketId, task.user_id, task.source === 'agent']
     )
-    const messages = [
+    const messages: DialogueMessage[] = [
       ...task.context,
-      ...rows.map(({ payload }) => ({
+      ...rows.map<DialogueMessage>(({ payload }) => ({
         role: payload.kind === 'agent' ? 'assistant' : 'user',
         content: payload.text,
       })),
@@ -224,9 +260,11 @@ export async function startAgent(services) {
     return messages
   }
 
-  async function runTicket(job) {
+  async function runTicket(job: JobWithMetadata<{ ticketId: string }>) {
     const ticketId = job.data.ticketId
-    const { rows } = await store.db.query(
+    const { rows } = await store.db.query<
+      TaskRow & { wake_prompt: string; wake_source: TicketSource }
+    >(
       `
       SELECT task.*, ticket.prompt AS wake_prompt, ticket.source AS wake_source
       FROM agent_tickets ticket JOIN agent_tasks task ON task.id = ticket.task_id
@@ -264,7 +302,7 @@ export async function startAgent(services) {
       const user = await store.user(task.user_id)
       const memories = await agentMemories(store.db, user.id)
       const messages = await taskMessages(task, task.wake_prompt, ticketId)
-      const steps = new Map()
+      const steps = new Map<string, ConversationToolStep>()
       let lastFlush = 0
       const result = await runModel({
         store,
@@ -277,7 +315,9 @@ export async function startAgent(services) {
         task,
         search: true,
         signal: AbortSignal.timeout(jobTimeout),
-        onStep: (step) => steps.set(step.id, step),
+        onStep: (step) => {
+          steps.set(step.id, step)
+        },
         onDelta: async (_, partial) => {
           if (Date.now() - lastFlush >= streamFlushMs) {
             await appendItem(
@@ -300,7 +340,8 @@ export async function startAgent(services) {
           (result.effects.files.length ? '文件做好了。' : '这次任务没有生成可用的回复。')
         await appendItem(db, user.id, task.id, { kind: 'agent', text }, ticketId)
         await publishEffects(db, user, task.model, result.effects, task.id)
-        const disposition = result.effects.disposition ?? {
+        const disposition: NonNullable<ModelEffects['disposition']> = result.effects
+          .disposition ?? {
           status: result.text || result.effects.files.length ? 'done' : 'failed',
         }
         const due = disposition.at ? new Date(disposition.at) : null
@@ -329,8 +370,11 @@ export async function startAgent(services) {
     }
   }
 
-  await boss.work(queueName, { includeMetadata: true, localConcurrency: 2 }, async ([job]) =>
-    runTicket(job)
+  const workOptions = { includeMetadata: true, localConcurrency: 2 } as const
+  await boss.work<{ ticketId: string }, unknown, typeof workOptions>(
+    queueName,
+    workOptions,
+    async ([job]) => runTicket(job)
   )
   return { handoff, send, publishEffects, stop: () => boss.stop(), enqueue }
 }

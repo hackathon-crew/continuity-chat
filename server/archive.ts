@@ -1,3 +1,13 @@
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { PostgresStore } from './store.ts'
+import type {
+  ArchiveOrigin,
+  AttachmentInput,
+  ConversationRow,
+  Db,
+  StoredTurn,
+  UserRow,
+} from './types.ts'
 import { randomUUID } from 'node:crypto'
 import { conversationSummary, modelOf, titleOf } from './conversations.ts'
 import { HttpError, readJson, sendJson } from './http.ts'
@@ -13,8 +23,24 @@ const inlineImageTypes = new Set([
   'image/tiff',
 ])
 
-export async function importConversation(req, res, store, user) {
-  const { source, archive, turns, files, model } = await readJson(req, archiveRequestBytes)
+type ArchiveInput = {
+  source: 'deepseek' | 'legacy'
+  archive: ArchiveOrigin
+  turns: StoredTurn[]
+  files: { id: string; type: string; data: string }[]
+  model: unknown
+}
+
+export async function importConversation(
+  req: IncomingMessage,
+  res: ServerResponse,
+  store: PostgresStore,
+  user: UserRow
+) {
+  const { source, archive, turns, files, model } = await readJson<ArchiveInput>(
+    req,
+    archiveRequestBytes
+  )
   if (
     !['deepseek', 'legacy'].includes(source) ||
     typeof archive?.id !== 'string' ||
@@ -30,7 +56,7 @@ export async function importConversation(req, res, store, user) {
   }
 
   const outcome = await store.transaction(async (db) => {
-    const { rows } = await db.query(
+    const { rows } = await db.query<ConversationRow>(
       `
       INSERT INTO conversations (id, user_id, title, model, source, source_id, origin, created_at, updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (user_id, source, source_id) DO NOTHING RETURNING *
@@ -49,7 +75,7 @@ export async function importConversation(req, res, store, user) {
     )
     const added = rows[0]
     if (!added) {
-      const { rows: existing } = await db.query(
+      const { rows: existing } = await db.query<ConversationRow>(
         'SELECT * FROM conversations WHERE user_id = $1 AND source = $2 AND source_id = $3',
         [user.id, source, archive.id]
       )
@@ -84,8 +110,14 @@ export async function importConversation(req, res, store, user) {
   sendJson(res, 201, outcome)
 }
 
-export async function downloadConversationFile(res, db, userId, conversationId, fileId) {
-  const { rows } = await db.query(
+export async function downloadConversationFile(
+  res: ServerResponse,
+  db: Db,
+  userId: string,
+  conversationId: string,
+  fileId: string
+) {
+  const { rows } = await db.query<{ media_type: string; content: Buffer }>(
     `
     SELECT f.media_type, f.content FROM conversation_files f JOIN conversations c ON c.id = f.conversation_id
     WHERE c.user_id = $1 AND c.id = $2 AND f.id = $3
@@ -106,9 +138,9 @@ export async function downloadConversationFile(res, db, userId, conversationId, 
   res.end(file.content)
 }
 
-export function newAttachment(file) {
+export function newAttachment(file: AttachmentInput) {
   const text = file?.type === 'text/plain' || file.type === 'text/markdown'
-  const image = inlineImageTypes.has(file?.type)
+  const image = inlineImageTypes.has(file?.type as string)
   if (typeof file?.name !== 'string' || typeof file.data !== 'string' || !(text || image)) {
     throw new HttpError(400, '聊天附件支持文本和常见图片', 'invalid_attachment')
   }

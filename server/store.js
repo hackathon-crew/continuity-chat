@@ -1,115 +1,135 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import path from 'node:path'
+import { readFile } from 'node:fs/promises'
+import pg from 'pg'
+import { decrypt, encrypt } from './security.js'
 
-const initialData = () => ({
-  users: [],
-  sessions: [],
-  subscriptions: [],
-  invoices: [],
-  profiles: {},
-  agentProfiles: {},
-  agentMessages: [],
-  tools: {},
-  tasks: [],
-  outbox: [],
-})
+const schemaLock = 428718281
+export const loginLifetime = 10 * 60
+export const sessionLifetime = 30 * 24 * 60 * 60
 
-export class JsonStore {
-  constructor(dataDir) {
-    this.dataDir = dataDir
-    this.file = path.join(dataDir, 'store.json')
-    this.data = initialData()
-    this.queue = Promise.resolve()
+export class PostgresStore {
+  constructor(settings) {
+    this.db = new pg.Pool({ connectionString: settings.databaseUrl })
+    this.encryptionKey = settings.encryptionKey
   }
 
   async init() {
-    await mkdir(this.dataDir, { recursive: true })
+    const schema = await readFile(new URL('./schema.sql', import.meta.url), 'utf8')
+    await this.transaction(async (db) => {
+      await db.query('SELECT pg_advisory_xact_lock($1)', [schemaLock])
+      await db.query(schema)
+    })
+  }
+
+  async transaction(run) {
+    const db = await this.db.connect()
     try {
-      const saved = JSON.parse(await readFile(this.file, 'utf8'))
-      this.data = { ...initialData(), ...saved }
+      await db.query('BEGIN')
+      const result = await run(db)
+      await db.query('COMMIT')
+      return result
     } catch (error) {
-      if (error.code !== 'ENOENT') {
-        throw error
-      }
-      await this.persist()
+      await db.query('ROLLBACK')
+      throw error
+    } finally {
+      db.release()
     }
   }
 
-  read(selector = (data) => data) {
-    return structuredClone(selector(this.data))
+  seal(userId, field, value) {
+    return encrypt(value, this.encryptionKey, `${userId}:${field}`)
   }
 
-  update(mutator) {
-    const task = this.queue.then(async () => {
-      const previous = structuredClone(this.data)
-      try {
-        const result = await mutator(this.data)
-        await this.persist()
-        return structuredClone(result)
-      } catch (error) {
-        this.data = previous
-        throw error
-      }
+  secret(user, field) {
+    return decrypt(user[field], this.encryptionKey, `${user.id}:${field}`)
+  }
+
+  async user(id, db = this.db, lock = false) {
+    const { rows } = await db.query(
+      `SELECT * FROM chat_users WHERE id = $1${lock ? ' FOR UPDATE' : ''}`,
+      [id]
+    )
+    return rows[0]
+  }
+
+  async addLogin(stateHash, browserHash, verifier) {
+    await this.db.query('DELETE FROM chat_login_attempts WHERE expires_at <= now()')
+    await this.db.query(
+      `
+      INSERT INTO chat_login_attempts (state_hash, browser_hash, verifier, expires_at)
+      VALUES ($1, $2, $3, now() + $4 * interval '1 second')
+    `,
+      [stateHash, browserHash, verifier, loginLifetime]
+    )
+  }
+
+  async consumeLogin(stateHash, browserHash) {
+    const { rows } = await this.db.query(
+      `
+      DELETE FROM chat_login_attempts
+      WHERE state_hash = $1 AND browser_hash = $2 AND expires_at > now()
+      RETURNING verifier
+    `,
+      [stateHash, browserHash]
+    )
+    return rows[0]
+  }
+
+  async startSession(me, key, tokens, sessionHash) {
+    const id = String(me.id)
+    await this.transaction(async (db) => {
+      await db.query(
+        `
+        INSERT INTO chat_users (id, name, email, model_key, oauth_access, oauth_refresh, oauth_expires_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        ON CONFLICT (id) DO UPDATE SET name = excluded.name, email = excluded.email,
+          model_key = excluded.model_key, oauth_access = excluded.oauth_access,
+          oauth_refresh = excluded.oauth_refresh, oauth_expires_at = excluded.oauth_expires_at
+      `,
+        [
+          id,
+          me.username || me.email,
+          me.email,
+          this.seal(id, 'model_key', key),
+          this.seal(id, 'oauth_access', tokens.access),
+          this.seal(id, 'oauth_refresh', tokens.refresh),
+          tokens.expiresAt,
+        ]
+      )
+      await db.query('DELETE FROM chat_sessions WHERE expires_at <= now()')
+      await db.query(
+        `
+        INSERT INTO chat_sessions (token_hash, user_id, expires_at)
+        VALUES ($1, $2, now() + $3 * interval '1 second')
+      `,
+        [sessionHash, id, sessionLifetime]
+      )
     })
-    this.queue = task.catch(() => {})
-    return task
   }
 
-  async persist() {
-    const temporary = `${this.file}.${process.pid}.tmp`
-    await writeFile(temporary, JSON.stringify(this.data, null, 2), { mode: 0o600 })
-    await rename(temporary, this.file)
+  async session(tokenHash) {
+    const { rows } = await this.db.query(
+      `
+      SELECT u.* FROM chat_users u JOIN chat_sessions s ON s.user_id = u.id
+      WHERE s.token_hash = $1 AND s.expires_at > now()
+    `,
+      [tokenHash]
+    )
+    return rows[0]
+  }
+
+  endSession(tokenHash) {
+    return this.db.query('DELETE FROM chat_sessions WHERE token_hash = $1', [tokenHash])
+  }
+
+  updateTokens(db, id, tokens) {
+    return db.query(
+      'UPDATE chat_users SET oauth_access = $2, oauth_refresh = $3, oauth_expires_at = $4 WHERE id = $1',
+      [
+        id,
+        this.seal(id, 'oauth_access', tokens.access),
+        this.seal(id, 'oauth_refresh', tokens.refresh),
+        tokens.expiresAt,
+      ]
+    )
   }
 }
-
-export const defaultProfile = () => ({
-  soul: {
-    companionName: '小续',
-    userName: '',
-    relationship: '熟悉彼此的朋友',
-    personality: '温柔、真诚、有分寸，不刻意讨好',
-    speakingStyle: '自然、简洁，像熟悉的伙伴一样说话',
-    boundaries: '不假装真人，不替用户做重要决定',
-    customInstructions: '',
-  },
-  memories: [],
-  proactive: {
-    enabled: true,
-    quietStart: '23:00',
-    quietEnd: '08:00',
-  },
-})
-
-export const defaultAgentProfile = () => ({
-  name: 'Personal Agent',
-  mission: '理解我的长期目标，主动整理信息并推进需要完成的事情。',
-  instructions: '先明确目标，再采取行动。涉及对外发布、消费或敏感操作时先征得确认。',
-  autonomy: 'confirm',
-})
-
-export const builtInTools = () => [
-  {
-    id: 'tool-time',
-    type: 'current_time',
-    name: 'current_time',
-    description: '获取指定时区的当前日期和时间',
-    enabled: true,
-    config: {},
-  },
-  {
-    id: 'tool-calculator',
-    type: 'calculator',
-    name: 'calculator',
-    description: '计算数学表达式，支持四则运算、括号、幂和常用函数',
-    enabled: true,
-    config: {},
-  },
-  {
-    id: 'tool-read-url',
-    type: 'read_url',
-    name: 'read_url',
-    description: '读取公开网页正文，用于总结或提取信息',
-    enabled: false,
-    config: {},
-  },
-]

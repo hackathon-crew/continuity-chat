@@ -1,11 +1,17 @@
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { App } from './app/App.js'
-import { setupTheme } from './app/theme.js'
-import { ensureKatex } from './services/markdown/katex.js'
-import './app/theme.css'
-import './app/global.css'
+import './everplain/styles/tokens.css'
+import './everplain/styles/base.css'
+import './everplain/styles/components.css'
+import './everplain/styles/system-theme.css'
+import { App } from './app/App'
 
-ensureKatex()
-setupTheme()
-
-createRoot(document.getElementById('root') as HTMLElement).render(<App />)
+const root = document.getElementById('root')
+if (!root) {
+  throw new Error('Application root is missing')
+}
+createRoot(root).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+)

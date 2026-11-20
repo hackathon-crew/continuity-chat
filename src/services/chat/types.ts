@@ -1,5 +1,4 @@
 import type { TranslationMessage } from '../../i18n/index.js'
-import type { ApiErrorKind } from '../api/client.js'
 import type {
   MessageUsage,
   ServerToolBlock,
@@ -96,7 +95,7 @@ export type AssistantMessage = MessageBranch & {
   usage?: MessageUsage
   error?: {
     /** upload：发送前补传附件失败，请求没有发出 */
-    kind: ApiErrorKind | 'upload'
+    kind: string
     message: string
     status?: number
     localMessage?: TranslationMessage

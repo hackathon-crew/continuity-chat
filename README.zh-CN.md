@@ -1,3 +1,3 @@
-# 续伴 · Continuity
+# Unigate Chat
 
-最新中文说明已合并至 [README.md](README.md)，避免双份文档出现启动方式和功能描述不一致。
+安装、UniGate 授权和历史导入说明见 [README](README.md)。

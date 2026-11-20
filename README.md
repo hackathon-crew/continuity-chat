@@ -2,9 +2,22 @@
 
 用 UniGate 账户登录，导入 DeepSeek 网页导出的 ZIP，再接着原来的对话聊。历史、回复和附件保存在 Unigate Chat 自己的 PostgreSQL，模型用量和扣费由 UniGate 处理。
 
-## 本地运行
+## 本地开发（无需 UniGate 账号）
 
-需要 Node.js 22、pnpm 和独立的 PostgreSQL 数据库。先在 UniGate 配置第一方客户端 `unigate-chat`，给它选一个按余额计费的可用分组。回调地址为 `PUBLIC_URL` 加 `/api/auth/callback`，与 UniGate 登记的地址精确一致。
+用 Node.js 22.22.2、pnpm 和本机 PostgreSQL。启动前确认 PostgreSQL 在 `127.0.0.1:5432`，本机角色有建库权限；默认用当前系统用户，也可用 PostgreSQL 的 `PGUSER`、`PGPASSWORD`。
+
+```sh
+pnpm install
+pnpm dev:fake
+```
+
+打开 `http://localhost:3080`，点击登录即可使用本机测试账户。脚本创建或复用 `continuity_chat_fake`，使用 3081 做后端、3082 做假 UniGate，后端不加载仓库的 `.env`，不访问真实 UniGate 或 Tavily。结束时按 Ctrl+C。
+
+第一次接手可先看 [架构地图](docs/architecture.md)。
+
+## 接入真实 UniGate
+
+服务端用 Node.js 直接运行 `.ts`；部署必须用 22.18 或更新的版本，并把旧启动入口改成 `server/index.ts`。需要 pnpm 和独立的 PostgreSQL 数据库。先在 UniGate 配置第一方客户端 `unigate-chat`，给它选一个按余额计费的可用分组。回调地址为 `PUBLIC_URL` 加 `/api/auth/callback`，与 UniGate 登记的地址精确一致。
 
 ```sh
 cp .env.example .env
@@ -15,7 +28,7 @@ pnpm dev
 
 把随机值填到 `APP_ENCRYPTION_KEY`，再设置 `DATABASE_URL` 和与 UniGate 一致的 `UNIGATE_OAUTH_CLIENT_SECRET`。聊天服务会在启动时建表。默认地址是 `http://localhost:3080`，同一对话使用登录用户自己的 UniGate Key。
 
-运行 `pnpm build` 然后 `pnpm start` 可预览生产构建。界面和动效的参照见 [mock README](mock/README.md)。
+运行 `pnpm build` 然后 `pnpm start` 可预览生产构建。
 
 ## 导入
 

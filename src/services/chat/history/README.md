@@ -1,10 +1,10 @@
-# 历史导入导出
+# 历史导入
 
 chat-demo 使用 `export_format_version: 3` 的历史会话 ZIP，导出文件名为 `deepseek_data-日期.zip`。字段定义见 [format.ts](./format.ts)，实际校验规则见 [schema.ts](./schema.ts)。
 
 ## 归档结构
 
-导出按以下顺序写入：
+导入支持以下条目顺序：
 
 ```text
 manifest.json                                      格式版本，必须是首个条目
@@ -13,7 +13,7 @@ chat_session_index.json                            会话索引
 chat_sessions/{session_id}_files/{file_id}_{file_name}  全部图片原件
 ```
 
-导入也支持“会话 JSON → 该会话图片”交错排列、索引在末尾的顺序。`user.json` 可位于 manifest 与会话之间，导入时跳过；本项目不导出账号信息。图片按 `FILE.export_path` 匹配。
+导入也支持“会话 JSON → 该会话图片”交错排列、索引在末尾的顺序。`user.json` 可位于 manifest 与会话之间，导入时跳过。图片按 `FILE.export_path` 匹配。
 
 可选字段允许缺省；时间接受以 `Z` 结尾、带可选小数秒的 UTC 时间。校验后只保留已定义字段，未知类型或无法解析的内容片段直接丢弃；容器和元数据字段不合法仍会导致导入失败。
 
@@ -25,7 +25,7 @@ chat_sessions/{session_id}_files/{file_id}_{file_name}  全部图片原件
 
 消息树以 `id` / `parent_id` 还原，父消息 ID 必须小于子消息 ID、角色交替、根为提问。`current_message_id` 决定当前分支；其他节点默认选中 ID 最大的子消息。缺失原件的附件保留文件名和大小，不进入后续请求；有原件的导入图片在首次用于请求时上传。
 
-导入时一次性转换为正式消息，正文、思考用时、模板标识、工具结果与阅读链接签名都保存在本地消息字段中，不保留原始消息副本。展示、请求与导出统一读取这份消息。只支持当前数据格式，不提供旧数据库迁移。
+导入时一次性转换为正式消息，正文、思考用时、模板标识、工具结果与阅读链接签名都保存在本地消息字段中，不保留原始消息副本。展示和请求统一读取这份消息。只支持当前数据格式，不提供旧数据库迁移。
 
 ## 展示与上下文
 
@@ -36,26 +36,15 @@ chat_sessions/{session_id}_files/{file_id}_{file_name}  全部图片原件
 - 错误与模板回复保留在消息树中，其所在轮次不进入后续请求上下文。
 - 已完成或已停止、有正文、非拒绝且不含服务端模板的回复可以进入上下文。
 - 续写统一由本地消息的 `prefix` 与回复状态、内容决定：新生成的回复设置 `prefix: true`，导入的回复统一设置 `prefix: false`，不能继续生成。模板回复与含工具块的回复也不能续写。`prefix` 不发送到 API；只有允许续写的回复才会作为末尾 assistant 发送。
-- 请求从当前消息回传正文及 `READ_LINK` 工具块中的签名、URL 和标题，供服务端恢复网页上下文。历史思考和其他工具块不回传，见 [../reply.ts](../reply.ts)。
-
-## 导出范围
-
-导出完整消息树与当前分支，只附带本地存在的图片原件；非图片附件仅有元数据。所有消息都从当前正式消息转换为归档片段，包含搜索状态、页内查找词、模板正文、思考用时，以及成功阅读链接结果的签名、URL 和标题。导入后修改的内容、状态和附件以当前值为准，不回写原始归档。具体映射见 [toArchive.ts](./toArchive.ts)。
-
-本地错误和拒绝提示以导出时的界面语言写入 `TEMPLATE_RESPONSE`，导入后保留文案且不参与上下文；正常空回复和达到长度上限的回复不补造提示。已有模板原样保留，重复导出不会重复追加这些提示。
-
-导出开始时保留列表和已加载会话的内存快照，未打开的会话再逐条从 IndexedDB 读取，不写入界面详情缓存。读取期间会话被删除而无法取得内容时，整次导出失败；导出标题采用开始时的列表快照。
-
-归档不保存 API Key 或应用设置，也不能完整恢复本地运行状态：正文引用角标、非图片附件原件、模型、思考签名、原工具调用 ID、结构化错误信息（类型、状态码及重试操作等）、用量明细、非当前分支的选择，以及 `latestReminder` 快照不会保留。新提问的快照按当前设置生成。
+- 请求从当前消息回传正文及 `READ_LINK` 工具块中的签名、URL 和标题，供服务端恢复网页上下文。历史思考和其他工具块不回传。
 
 ## 模块与 ZIP 支持
 
-| 文件                                                                           | 职责                           |
-| ------------------------------------------------------------------------------ | ------------------------------ |
-| [format.ts](./format.ts)、[schema.ts](./schema.ts)                             | 归档类型与字段校验             |
-| [toLocal.ts](./toLocal.ts)、[toArchive.ts](./toArchive.ts)                     | 归档与本地消息转换             |
-| [importArchive.ts](./importArchive.ts)、[exportArchive.ts](./exportArchive.ts) | 条目读取、暂存与归档组装       |
-| [zipReader.ts](./zipReader.ts)、[zipWriter.ts](./zipWriter.ts)                 | ZIP 读写及路径、大小、CRC 校验 |
-| [../backup.ts](../backup.ts)                                                   | 导入导出入口与串行队列         |
+| 文件 | 职责 |
+| --- | --- |
+| [format.ts](./format.ts)、[schema.ts](./schema.ts) | 归档类型与字段校验 |
+| [toLocal.ts](./toLocal.ts) | 归档与本地消息转换 |
+| [importArchive.ts](./importArchive.ts) | 条目读取与暂存 |
+| [zipReader.ts](./zipReader.ts) | ZIP 读取及路径、大小、CRC 校验 |
 
-支持单卷 ZIP32 的 STORE / DEFLATE，导出使用 STORE。ZIP64、加密、分卷及非 UTF-8 的非 ASCII 文件名不支持；条目名统一按 NFC 比较。不另设业务大小上限，但受 ZIP32 容量和浏览器资源限制，导出会生成完整下载 Blob。
+支持单卷 ZIP32 的 STORE / DEFLATE。ZIP64、加密、分卷及非 UTF-8 的非 ASCII 文件名不支持；条目名统一按 NFC 比较。不另设业务大小上限，但受 ZIP32 容量和浏览器资源限制。

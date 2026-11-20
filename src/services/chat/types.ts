@@ -1,4 +1,3 @@
-import type { TranslationMessage } from '../../i18n/index.js'
 import type {
   MessageUsage,
   ServerToolBlock,
@@ -6,6 +5,7 @@ import type {
   StopReason,
   TextCitation,
 } from '../api/types.js'
+import type { StoredErrorMessage } from './history/errors.js'
 
 /**
  * 消息附件。id 是本地标识（IndexedDB files 表的主键，原件按它存储，所有引用同一 id 的消息共用一份），
@@ -98,7 +98,7 @@ export type AssistantMessage = MessageBranch & {
     kind: string
     message: string
     status?: number
-    localMessage?: TranslationMessage
+    localMessage?: StoredErrorMessage
     /** 仅 upload：重新上传是否可能成功（网络、限流、服务端繁忙）；过大、格式不支持为 false */
     retryable?: boolean
   }

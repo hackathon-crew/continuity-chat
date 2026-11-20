@@ -1,6 +1,6 @@
 import { ArrowSquareOutIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
-import { Octopus } from '../inkpaw/Octopus'
+import { Octopus } from '../vendor/inkpaw/Octopus'
 
 export function LoginPage({
   onSignIn,

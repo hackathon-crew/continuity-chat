@@ -1,4 +1,4 @@
-import { classifyStatus } from '../api/errors.js'
+import { classifyStatus } from './api/errors.js'
 import { historyErrorText } from './history/errors.js'
 import type { AssistantMessage } from './types.js'
 

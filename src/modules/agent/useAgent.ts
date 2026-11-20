@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
-import { encodeBlob, json } from './api'
-import {
-  agent,
-  type AgentItem,
-  type AgentJob,
-  type AgentProfile,
-  type AgentState,
-  type Tool,
-} from './data'
+import { encodeBlob, json } from '../../shared/api'
+import type {
+  AgentItem,
+  AgentJob,
+  AgentProfile,
+  AgentState,
+  Tool,
+} from '../../../contract/types'
+
+const agent: AgentProfile = {
+  name: 'Uni',
+  persona: '',
+  proactive: true,
+  timezone: 'Asia/Shanghai',
+}
 
 const initial: AgentState = {
   profile: { ...agent, timezone: 'Asia/Shanghai' },

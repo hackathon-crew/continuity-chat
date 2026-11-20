@@ -10,7 +10,7 @@
     "build": "vite build",
     "start": "NODE_ENV=production node --env-file-if-exists=.env server/index.js",
     "type": "tsc -p tsconfig.json",
-    "lint": "oxlint src server scripts --ignore-pattern 'src/everplain/**' --ignore-pattern 'src/inkpaw/**'",
+    "lint": "oxlint src server scripts --ignore-pattern 'src/vendor/everplain/**' --ignore-pattern 'src/vendor/inkpaw/**'",
     "format": "oxfmt --write .",
     "import:legacy": "node --env-file-if-exists=.env scripts/import-legacy.mjs",
     "test": "node --test server/test/*.test.js"

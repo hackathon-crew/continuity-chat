@@ -4,7 +4,7 @@ import type {
   StopDetails,
   StopReason,
   TextCitation,
-} from '../api/types.js'
+} from './api/types.js'
 import type { StoredErrorMessage } from './history/errors.js'
 
 /**

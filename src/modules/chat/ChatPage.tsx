@@ -25,16 +25,17 @@ import {
   type CSSProperties,
   type KeyboardEvent,
 } from 'react'
-import { useStreamPacer } from '../everplain/app/agent/useStreamPacer'
-import { ConversationActivity } from '../everplain/app/conversation-view/ConversationActivity'
-import { ConversationComposer } from '../everplain/app/conversation-view/ConversationComposer'
-import { ConversationLayout } from '../everplain/app/conversation-view/ConversationLayout'
-import { ConversationThinking } from '../everplain/app/conversation-view/ConversationThinking'
-import { flyBubble, takeLaunch } from '../everplain/app/conversation-view/sendFlight'
-import '../everplain/app/conversation-view/conversation-view.css'
-import { displayDate, type Conversation, type Model, type Turn } from './data'
-import { Markdown, ModelPicker, OctoMark, Popover } from './parts'
-import { FileCard } from './AgentPage'
+import { useStreamPacer } from '../../vendor/everplain/app/agent/useStreamPacer'
+import { ConversationActivity } from '../../vendor/everplain/app/conversation-view/ConversationActivity'
+import { ConversationComposer } from '../../vendor/everplain/app/conversation-view/ConversationComposer'
+import { ConversationLayout } from '../../vendor/everplain/app/conversation-view/ConversationLayout'
+import { ConversationThinking } from '../../vendor/everplain/app/conversation-view/ConversationThinking'
+import { flyBubble, takeLaunch } from '../../vendor/everplain/app/conversation-view/sendFlight'
+import '../../vendor/everplain/app/conversation-view/conversation-view.css'
+import type { Conversation, Model, Turn } from '../../../contract/types'
+import { displayDate } from '../../shared/displayDate'
+import { Markdown, ModelPicker, OctoMark, Popover } from '../../shared/ui/parts'
+import { FileCard } from '../agent/AgentPage'
 import type { SendOptions } from './useConversations'
 
 type ChatPageProps = {

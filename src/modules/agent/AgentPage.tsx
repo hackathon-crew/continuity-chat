@@ -18,17 +18,17 @@ import {
   type CSSProperties,
   type KeyboardEvent,
 } from 'react'
-import { useStreamPacer } from '../everplain/app/agent/useStreamPacer'
-import { ConversationActivity } from '../everplain/app/conversation-view/ConversationActivity'
-import { ConversationComposer } from '../everplain/app/conversation-view/ConversationComposer'
-import { ConversationLayout } from '../everplain/app/conversation-view/ConversationLayout'
-import { ConversationThinking } from '../everplain/app/conversation-view/ConversationThinking'
-import { flyBubble, takeLaunch } from '../everplain/app/conversation-view/sendFlight'
-import '../everplain/app/conversation-view/conversation-view.css'
-import { Octopus } from '../inkpaw/Octopus'
-import type { Mood } from '../inkpaw/inkpaw-octopus'
-import type { AgentItem, AgentJob } from './data'
-import { Markdown } from './parts'
+import { useStreamPacer } from '../../vendor/everplain/app/agent/useStreamPacer'
+import { ConversationActivity } from '../../vendor/everplain/app/conversation-view/ConversationActivity'
+import { ConversationComposer } from '../../vendor/everplain/app/conversation-view/ConversationComposer'
+import { ConversationLayout } from '../../vendor/everplain/app/conversation-view/ConversationLayout'
+import { ConversationThinking } from '../../vendor/everplain/app/conversation-view/ConversationThinking'
+import { flyBubble, takeLaunch } from '../../vendor/everplain/app/conversation-view/sendFlight'
+import '../../vendor/everplain/app/conversation-view/conversation-view.css'
+import { Octopus } from '../../vendor/inkpaw/Octopus'
+import type { Mood } from '../../vendor/inkpaw/inkpaw-octopus'
+import type { AgentItem, AgentJob } from '../../../contract/types'
+import { Markdown } from '../../shared/ui/parts'
 
 type AgentPageProps = {
   items: AgentItem[]

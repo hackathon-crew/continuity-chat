@@ -2,7 +2,7 @@ import type {
   ServerToolUseBlock,
   WebFetchResult,
   WebFetchToolResultBlock,
-} from '../../api/types.js'
+} from '../api/types.js'
 import type {
   AssistantMessage,
   FileAttachment,

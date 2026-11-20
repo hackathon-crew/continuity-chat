@@ -1,10 +1,10 @@
-import { getVisibleMessages } from '../services/chat/branches'
-import { describeReply } from '../services/chat/describe'
-import { stageArchive } from '../services/chat/db'
-import { importArchive } from '../services/chat/history/importArchive'
-import type { Session } from '../services/chat/types'
-import { encodeBlob, json } from './api'
-import type { ConversationSummary, Turn } from './data'
+import { getVisibleMessages } from './deepseek/branches'
+import { describeReply } from './deepseek/describe'
+import { stageArchive } from './deepseek/db'
+import { importArchive } from './deepseek/history/importArchive'
+import type { Session } from './deepseek/types'
+import { encodeBlob, json } from '../../shared/api'
+import type { ConversationSummary, Turn } from '../../../contract/types'
 
 export const readDeepSeekArchive = (file: File) => stageArchive(() => importArchive(file))
 

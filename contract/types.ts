@@ -1,4 +1,14 @@
-import type { ConversationToolStep } from '../everplain/app/conversation-view/types'
+export type ConversationToolStep = {
+  id: string
+  label: string
+  status: 'running' | 'completed' | 'failed'
+  interrupted?: boolean
+  purpose?: string
+  input?: unknown
+  output?: unknown
+  detail?: string
+  resultItems?: readonly { id: string; title: string; excerpt?: string | null }[]
+}
 
 export type ModelProvider = 'deepseek' | 'openai' | 'generic'
 export type Model = { id: string; name: string; provider: ModelProvider; note?: string }
@@ -54,12 +64,6 @@ export type UsageRow = {
   actual_cost: number
 }
 export type AgentProfile = { name: string; persona: string; proactive: boolean; timezone: string }
-export const agent: AgentProfile = {
-  name: 'Uni',
-  persona: '',
-  proactive: true,
-  timezone: 'Asia/Shanghai',
-}
 
 export type AgentItem = { id: string; createdAt?: string; taskId?: string } & (
   | { kind: 'time'; id: string; label: string }
@@ -91,12 +95,6 @@ export type AgentJob = {
 }
 export type Memory = { id: string; text: string; from: string }
 
-export const displayDate = (value: number | string) =>
-  new Intl.DateTimeFormat('zh-CN', {
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date(value))
-
 export type Tool = {
   id: string
   name: string
@@ -113,3 +111,9 @@ export type AgentState = {
   tools: Tool[]
   mcpServers: { id: string; url: string }[]
 }
+
+export type ChatEvent =
+  | { type: 'start'; turn: Turn; title: string }
+  | { type: 'delta'; delta: string }
+  | { type: 'step'; step: NonNullable<Turn['steps']>[number] }
+  | { type: 'done'; turn: Turn }

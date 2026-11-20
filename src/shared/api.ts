@@ -1,4 +1,4 @@
-import type { Model, Turn } from './data'
+import type { ChatEvent, Model } from '../../contract/types'
 
 export class ApiError extends Error {
   constructor(
@@ -46,12 +46,6 @@ export async function listModels(): Promise<Model[]> {
     return { id: model.id, name: model.display_name || model.id, note: model.description, provider }
   })
 }
-
-export type ChatEvent =
-  | { type: 'start'; turn: Turn; title: string }
-  | { type: 'delta'; delta: string }
-  | { type: 'step'; step: NonNullable<Turn['steps']>[number] }
-  | { type: 'done'; turn: Turn }
 
 export async function readChatEvents(response: Response, apply: (event: ChatEvent) => void) {
   if (!response.body) {

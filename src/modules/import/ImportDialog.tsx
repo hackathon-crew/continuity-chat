@@ -1,10 +1,10 @@
 import { CheckCircleIcon, CheckIcon, FileZipIcon, UploadSimpleIcon } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
-import { SettingsModal } from '../everplain/app/ui/SettingsModal'
-import '../everplain/app/ui/settings-modal.css'
-import { legacyDatabases, readLegacyDatabase } from '../services/chat/db'
-import type { ConversationSummary } from './data'
-import { displayDate } from './data'
+import { SettingsModal } from '../../vendor/everplain/app/ui/SettingsModal'
+import '../../vendor/everplain/app/ui/settings-modal.css'
+import { legacyDatabases, readLegacyDatabase } from './deepseek/db'
+import type { ConversationSummary } from '../../../contract/types'
+import { displayDate } from '../../shared/displayDate'
 import { readDeepSeekArchive, saveImportedConversation } from './historyImport'
 
 type Stage = Awaited<ReturnType<typeof readDeepSeekArchive>>

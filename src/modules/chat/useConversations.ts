@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import { encodeBlob, json, readChatEvents, request } from './api'
-import { type Conversation, type ConversationSummary, type Turn } from './data'
+import { encodeBlob, json, readChatEvents, request } from '../../shared/api'
+import { type Conversation, type ConversationSummary, type Turn } from '../../../contract/types'
 
 export type SendOptions = { search: boolean; handoff: boolean; files?: File[]; replaceId?: string }
 

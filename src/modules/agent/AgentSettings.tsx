@@ -1,7 +1,7 @@
 import { PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
-import { Octopus } from '../inkpaw/Octopus'
-import type { useUni } from './useUni'
+import { Octopus } from '../../vendor/inkpaw/Octopus'
+import type { useUni } from './useAgent'
 
 type Uni = ReturnType<typeof useUni>
 

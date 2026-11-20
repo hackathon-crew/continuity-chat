@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { createTask, saveMemory } from '../server/agent/repository.js'
-import { config } from '../server/config.js'
-import { PostgresStore } from '../server/store.js'
+import { createTask, saveMemory } from '../server/agent/repository.ts'
+import { config } from '../server/config.ts'
+import { PostgresStore } from '../server/store.ts'
 
 const [sourcePath, mappingPath, model] = process.argv.slice(2)
 if (!sourcePath || !mappingPath || !model || !config.databaseUrl) {

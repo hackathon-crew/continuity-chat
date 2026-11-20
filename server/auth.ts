@@ -1,6 +1,6 @@
-import { cookie, cookieValue, HttpError, redirect, sendJson } from './http.js'
-import { createToken, hashToken } from './security.js'
-import { loginLifetime, sessionLifetime } from './store.js'
+import { cookie, cookieValue, HttpError, redirect, sendJson } from './http.ts'
+import { createToken, hashToken } from './security.ts'
+import { loginLifetime, sessionLifetime } from './store.ts'
 
 const loginCookie = 'continuity_oauth'
 const sessionCookie = 'continuity_session'

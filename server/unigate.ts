@@ -1,4 +1,4 @@
-import { HttpError } from './http.js'
+import { HttpError } from './http.ts'
 
 const clientId = 'unigate-chat'
 const oauthPath = '/api/v1/oauth/unigate-chat'

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { HttpError } from '../http.js'
+import { HttpError } from '../http.ts'
 
 export async function agentProfile(db, userId) {
   await db.query('INSERT INTO agent_profiles (user_id) VALUES ($1) ON CONFLICT DO NOTHING', [

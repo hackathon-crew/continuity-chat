@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { newAttachment } from '../archive.js'
-import { modelOf, uuidPattern } from '../conversations.js'
-import { HttpError, readJson, sendJson } from '../http.js'
-import { publicUrl } from './public-web.js'
-import { agentMemories, agentProfile, listAgentState, saveMemory } from './repository.js'
-import { availableTools, toolCatalog, verifyMcp } from './tools.js'
+import { newAttachment } from '../archive.ts'
+import { modelOf, uuidPattern } from '../conversations.ts'
+import { HttpError, readJson, sendJson } from '../http.ts'
+import { publicUrl } from './public-web.ts'
+import { agentMemories, agentProfile, listAgentState, saveMemory } from './repository.ts'
+import { availableTools, toolCatalog, verifyMcp } from './tools.ts'
 
 const profilePatch = z.object({
   name: z.string().trim().min(1).max(28).optional(),

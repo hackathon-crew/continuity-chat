@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { PgBoss } from 'pg-boss'
-import { HttpError } from '../http.js'
-import { runModel } from './model.js'
+import { HttpError } from '../http.ts'
+import { runModel } from './model.ts'
 import {
   agentMemories,
   agentProfile,
@@ -10,8 +10,8 @@ import {
   findTask,
   saveMemory,
   updateTask,
-} from './repository.js'
-import { nextReminder, quietUntil } from './time.js'
+} from './repository.ts'
+import { nextReminder, quietUntil } from './time.ts'
 
 const queueName = 'uni-task'
 const jobTimeout = 180_000

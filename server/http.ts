@@ -1,4 +1,4 @@
-import { hashToken } from './security.js'
+import { hashToken } from './security.ts'
 
 export class HttpError extends Error {
   constructor(status, message, code = 'request_error') {

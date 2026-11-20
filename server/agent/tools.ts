@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { createMCPClient } from '@ai-sdk/mcp'
 import { tool } from 'ai'
 import { z } from 'zod'
-import { createPresentation } from './presentation.js'
-import { publicFetch, publicUrl, readWebPage } from './public-web.js'
+import { createPresentation } from './presentation.ts'
+import { publicFetch, publicUrl, readWebPage } from './public-web.ts'
 
 export const toolCatalog = [
   { id: 'web_search', name: '联网搜索', detail: '用 Tavily 查找网页' },

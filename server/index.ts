@@ -5,12 +5,12 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
-import { startAgent } from './agent/queue.js'
-import { routeAgent } from './agent/routes.js'
-import { downloadConversationFile, importConversation } from './archive.js'
-import { streamTurn } from './chat.js'
-import { billing, finishLogin, logout, publicUser, startLogin } from './auth.js'
-import { config, validateConfig } from './config.js'
+import { startAgent } from './agent/queue.ts'
+import { routeAgent } from './agent/routes.ts'
+import { downloadConversationFile, importConversation } from './archive.ts'
+import { streamTurn } from './chat.ts'
+import { billing, finishLogin, logout, publicUser, startLogin } from './auth.ts'
+import { config, validateConfig } from './config.ts'
 import {
   createConversation,
   deleteConversation,
@@ -20,7 +20,7 @@ import {
   getTurns,
   listConversations,
   uuidPattern,
-} from './conversations.js'
+} from './conversations.ts'
 import {
   HttpError,
   checkSameOrigin,
@@ -29,9 +29,9 @@ import {
   requireUser,
   sendError,
   sendJson,
-} from './http.js'
-import { PostgresStore } from './store.js'
-import { UniGateClient } from './unigate.js'
+} from './http.ts'
+import { PostgresStore } from './store.ts'
+import { UniGateClient } from './unigate.ts'
 
 const openAIPaths = new Map([
   ['/v1/models', 'GET'],

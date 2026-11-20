@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import pg from 'pg'
-import { decrypt, encrypt } from './security.js'
+import { decrypt, encrypt } from './security.ts'
 
 const schemaLock = 428718281
 export const loginLifetime = 10 * 60

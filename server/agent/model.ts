@@ -1,6 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import { stepCountIs, streamText } from 'ai'
-import { connectTools, modelTools } from './tools.js'
+import { connectTools, modelTools } from './tools.ts'
 
 const maxSteps = 7
 

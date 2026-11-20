@@ -14,7 +14,7 @@ const env = {
   UNIGATE_CHAT_DEV_BACKEND: `http://127.0.0.1:${backendPort}`,
 }
 const children = [
-  spawn(process.execPath, ['server/index.js'], { stdio: 'inherit', env }),
+  spawn(process.execPath, ['server/index.ts'], { stdio: 'inherit', env }),
   spawn('pnpm', ['exec', 'vite', '--port', publicPort], { stdio: 'inherit', env }),
 ]
 

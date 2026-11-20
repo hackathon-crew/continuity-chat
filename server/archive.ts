@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { conversationSummary, modelOf, titleOf } from './conversations.js'
-import { HttpError, readJson, sendJson } from './http.js'
+import { conversationSummary, modelOf, titleOf } from './conversations.ts'
+import { HttpError, readJson, sendJson } from './http.ts'
 
 const archiveRequestBytes = 48 * 1024 * 1024
 const inlineImageTypes = new Set([

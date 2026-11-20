@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { HttpError } from './http.js'
+import { HttpError } from './http.ts'
 
 export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

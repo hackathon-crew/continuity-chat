@@ -3,7 +3,7 @@ import test from 'node:test'
 import { unzipSync, strFromU8 } from 'fflate'
 
 test('Uni produces editable PowerPoint text', async () => {
-  const { createPresentation } = await import('../agent/presentation.js')
+  const { createPresentation } = await import('../agent/presentation.ts')
   const file = await createPresentation({
     title: '任务验收',
     slides: [{ title: '进展', bullets: ['第一条证据'] }],

@@ -1,8 +1,8 @@
-import { readJson, HttpError } from './http.js'
-import { findConversation, getTurns, modelOf, titleOf, uuidPattern } from './conversations.js'
-import { newAttachment } from './archive.js'
-import { runModel } from './agent/model.js'
-import { agentMemories, agentProfile } from './agent/repository.js'
+import { readJson, HttpError } from './http.ts'
+import { findConversation, getTurns, modelOf, titleOf, uuidPattern } from './conversations.ts'
+import { newAttachment } from './archive.ts'
+import { runModel } from './agent/model.ts'
+import { agentMemories, agentProfile } from './agent/repository.ts'
 
 const turnDurationMs = 180_000
 const turnRequestBytes = 16 * 1024 * 1024

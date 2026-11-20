@@ -4,7 +4,7 @@ import { once } from 'node:events'
 import test from 'node:test'
 
 test('UniGate requests use only the selected user key and preserve streaming frames', async (t) => {
-  const { UniGateClient } = await import('../unigate.js')
+  const { UniGateClient } = await import('../unigate.ts')
   const seen = []
   const upstream = createServer((req, res) => {
     seen.push({ auth: req.headers.authorization, path: req.url })
@@ -28,7 +28,7 @@ test('UniGate requests use only the selected user key and preserve streaming fra
 })
 
 test('billing responses expose usage numbers without API credentials', async (t) => {
-  const { billing } = await import('../auth.js')
+  const { billing } = await import('../auth.ts')
   const raw = {
     '/me': { balance: 9.5, frozen_balance: 1 },
     '/usage': {

@@ -1,3 +1,15 @@
+import { addAgentFile } from '../db/agent-files.ts'
+import {
+  addTicket,
+  appendTaskContext,
+  closeTicket,
+  findMessageTask,
+  lockMessage,
+  recentTaskMessages,
+  ticketTask,
+} from '../db/agent-jobs.ts'
+import { updateTurn } from '../db/conversations.ts'
+import { findUser } from '../db/users.ts'
 import type { ConversationToolStep } from '../../contract/types.ts'
 import type {
   CoreServices,
@@ -7,7 +19,7 @@ import type {
   ReminderSpec,
   StoredTurn,
   TaskRow,
-  TaskSource,
+  TicketSource,
   UserRow,
 } from '../types.ts'
 import { randomUUID } from 'node:crypto'
@@ -22,10 +34,9 @@ import {
   findTask,
   saveMemory,
   updateTask,
-} from './repository.ts'
+} from '../db/agent.ts'
 import { nextReminder, quietUntil } from './time.ts'
 
-type TicketSource = Exclude<TaskSource, 'legacy'>
 type SendMessage = {
   text: string
   model: string
@@ -57,12 +68,7 @@ export async function startAgent(services: CoreServices) {
     at?: Date | null
   ) {
     const id = randomUUID()
-    await db.query('INSERT INTO agent_tickets (id, task_id, source, prompt) VALUES ($1,$2,$3,$4)', [
-      id,
-      task.id,
-      source,
-      prompt,
-    ])
+    await addTicket(db, id, task.id, source, prompt)
     const job = await boss.send(
       queueName,
       { ticketId: id },
@@ -102,11 +108,7 @@ export async function startAgent(services: CoreServices) {
         streaming: false,
         task: { id: task.id, title: task.title, status: 'running' },
       }
-      await db.query('UPDATE chat_turns SET payload = $3 WHERE conversation_id = $1 AND id = $2', [
-        conversationId,
-        turn.id,
-        receipt,
-      ])
+      await updateTurn(db, conversationId, receipt)
       await appendItem(db, user.id, task.id, { kind: 'user', text: turn.question })
       await enqueue(db, task, 'chat', turn.question)
       return receipt
@@ -115,13 +117,10 @@ export async function startAgent(services: CoreServices) {
 
   async function send(user: UserRow, { text, model, taskId, messageId, context }: SendMessage) {
     return store.transaction(async (db) => {
-      await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [messageId])
-      const { rows } = await db.query<{ task_id: string }>(
-        'SELECT task_id FROM agent_messages WHERE user_id = $1 AND id = $2',
-        [user.id, messageId]
-      )
-      if (rows[0]) {
-        return { taskId: rows[0].task_id }
+      await lockMessage(db, messageId)
+      const previous = await findMessageTask(db, user.id, messageId)
+      if (previous) {
+        return { taskId: previous.task_id }
       }
       let task
       if (taskId) {
@@ -131,10 +130,7 @@ export async function startAgent(services: CoreServices) {
         }
         await updateTask(db, task, 'running')
         if (context.length) {
-          await db.query('UPDATE agent_tasks SET context = context || $2::jsonb WHERE id = $1', [
-            task.id,
-            JSON.stringify(context),
-          ])
+          await appendTaskContext(db, task.id, context)
         }
       } else {
         task = await createTask(db, user.id, {
@@ -161,12 +157,7 @@ export async function startAgent(services: CoreServices) {
   ) {
     const attachments = []
     for (const file of effects.files) {
-      await db.query('INSERT INTO agent_files (id,user_id,name,content) VALUES ($1,$2,$3,$4)', [
-        file.id,
-        user.id,
-        file.name,
-        file.content,
-      ])
+      await addAgentFile(db, user.id, file)
       const item = {
         kind: 'file' as const,
         name: file.name,
@@ -202,10 +193,6 @@ export async function startAgent(services: CoreServices) {
     return attachments
   }
 
-  async function closeTicket(db: Db, id: string) {
-    await db.query('UPDATE agent_tickets SET closed_at = now() WHERE id = $1', [id])
-  }
-
   async function deliverReminder(task: TaskRow, ticket: string, profile: ProfileRow) {
     await store.transaction(async (db) => {
       const current = await findTask(db, task.user_id, task.id)
@@ -234,19 +221,7 @@ export async function startAgent(services: CoreServices) {
   }
 
   async function taskMessages(task: TaskRow, prompt: string, ticketId: string) {
-    const { rows } = await store.db.query<{ payload: { kind: 'agent' | 'user'; text: string } }>(
-      `
-      SELECT payload FROM (
-        SELECT payload, sequence, created_at FROM agent_messages
-        WHERE user_id = $3 AND id <> $2 AND (task_id = $1 OR ($4 AND (
-          task_id IS NULL OR task_id IN (SELECT id FROM agent_tasks WHERE user_id = $3 AND source = 'agent')
-        )))
-        AND payload->>'kind' IN ('user','agent') AND coalesce(payload->>'streaming', '') <> 'true'
-        ORDER BY created_at DESC, sequence DESC LIMIT 50
-      ) recent ORDER BY created_at, sequence
-    `,
-      [task.id, ticketId, task.user_id, task.source === 'agent']
-    )
+    const rows = await recentTaskMessages(store.db, task, ticketId)
     const messages: DialogueMessage[] = [
       ...task.context,
       ...rows.map<DialogueMessage>(({ payload }) => ({
@@ -262,17 +237,7 @@ export async function startAgent(services: CoreServices) {
 
   async function runTicket(job: JobWithMetadata<{ ticketId: string }>) {
     const ticketId = job.data.ticketId
-    const { rows } = await store.db.query<
-      TaskRow & { wake_prompt: string; wake_source: TicketSource }
-    >(
-      `
-      SELECT task.*, ticket.prompt AS wake_prompt, ticket.source AS wake_source
-      FROM agent_tickets ticket JOIN agent_tasks task ON task.id = ticket.task_id
-      WHERE ticket.id = $1 AND ticket.closed_at IS NULL
-    `,
-      [ticketId]
-    )
-    const task = rows[0]
+    const task = await ticketTask(store.db, ticketId)
     if (!task) {
       return
     }
@@ -299,7 +264,7 @@ export async function startAgent(services: CoreServices) {
         return
       }
       await updateTask(store.db, task, 'running')
-      const user = await store.user(task.user_id)
+      const user = await findUser(store.db, task.user_id)
       const memories = await agentMemories(store.db, user.id)
       const messages = await taskMessages(task, task.wake_prompt, ticketId)
       const steps = new Map<string, ConversationToolStep>()

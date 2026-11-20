@@ -1,6 +1,7 @@
+import { mcpCredentials } from '../db/agent-settings.ts'
 import type { Memory, Tool } from '../../contract/types.ts'
 import type { Config } from '../config.ts'
-import type { PostgresStore } from '../store.ts'
+import type { PostgresStore } from '../db/store.ts'
 import type { ProfileRow, TaskRow } from '../types.ts'
 import type { ModelEffects } from './model.ts'
 import { randomUUID } from 'node:crypto'
@@ -185,10 +186,7 @@ export async function connectTools(
   userId: string,
   onUnavailable: (id: string) => void
 ) {
-  const { rows } = await store.db.query<{ id: string; url: string; token: string | null }>(
-    'SELECT id, url, token FROM agent_mcp_servers WHERE user_id = $1 ORDER BY id',
-    [userId]
-  )
+  const rows = await mcpCredentials(store.db, userId)
   const clients: Awaited<ReturnType<typeof openMcp>>[] = []
   const tools: ToolSet = {}
   for (const [index, server] of rows.entries()) {

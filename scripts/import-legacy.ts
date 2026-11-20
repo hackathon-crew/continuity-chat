@@ -1,8 +1,11 @@
+import { addLegacyMessage, markLegacyMigration, mergeLegacyProfile } from '../server/db/legacy.ts'
+import { findUser } from '../server/db/users.ts'
+import type { ItemPayload } from '../server/types.ts'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { createTask, saveMemory } from '../server/agent/repository.ts'
+import { createTask, saveMemory } from '../server/db/agent.ts'
 import { config } from '../server/config.ts'
-import { PostgresStore } from '../server/store.ts'
+import { PostgresStore } from '../server/db/store.ts'
 
 type LegacyWorkspace = {
   users: { id: string }[]
@@ -44,19 +47,13 @@ try {
     if (
       !/^\d+$/.test(userId) ||
       !legacy.users.some((user) => user.id === localId) ||
-      !(await store.user(userId))
+      !(await findUser(store.db, userId))
     ) {
       throw new Error('Each mapping must link an old account to a signed-in UniGate user')
     }
 
     const migrated = await store.transaction(async (db) => {
-      const marker = await db.query(
-        `
-        INSERT INTO legacy_agent_migrations (local_account_id, user_id)
-        VALUES ($1,$2) ON CONFLICT DO NOTHING
-      `,
-        [localId, userId]
-      )
+      const marker = await markLegacyMigration(db, localId, userId)
       if (!marker.rowCount) {
         return false
       }
@@ -74,15 +71,7 @@ try {
         .filter(Boolean)
         .join('\n')
         .slice(0, 3000)
-      await db.query(
-        `
-        INSERT INTO agent_profiles (user_id, name, persona, proactive) VALUES ($1,$2,$3,$4)
-        ON CONFLICT (user_id) DO UPDATE SET
-          name = CASE WHEN agent_profiles.name = 'Uni' THEN excluded.name ELSE agent_profiles.name END,
-          persona = CASE WHEN agent_profiles.persona = '' THEN excluded.persona ELSE agent_profiles.persona END
-      `,
-        [userId, customName, persona, old?.proactive?.enabled !== false]
-      )
+      await mergeLegacyProfile(db, userId, customName, persona, old?.proactive?.enabled !== false)
 
       for (const row of old?.memories ?? []) {
         if (row.enabled !== false && typeof row.content === 'string' && row.content.trim()) {
@@ -95,12 +84,12 @@ try {
           typeof row.content === 'string' &&
           ['user', 'assistant'].includes(row.role)
         ) {
-          const payload = { kind: row.role === 'user' ? 'user' : 'agent', text: row.content }
+          const payload: ItemPayload = {
+            kind: row.role === 'user' ? 'user' : 'agent',
+            text: row.content,
+          }
           const at = Number.isFinite(row.createdAt) ? new Date(row.createdAt) : new Date()
-          await db.query(
-            'INSERT INTO agent_messages (id,user_id,payload,created_at) VALUES ($1,$2,$3,$4)',
-            [randomUUID(), userId, payload, at]
-          )
+          await addLegacyMessage(db, randomUUID(), userId, payload, at)
         }
       }
       for (const row of legacy.tasks ?? []) {

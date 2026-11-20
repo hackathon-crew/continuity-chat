@@ -1,14 +1,14 @@
 import type { AddressInfo } from 'node:net'
 import type { Billing, UsageRow } from '../../contract/types.ts'
 import { config } from '../config.ts'
-import type { CoreServices, UserRow } from '../types.ts'
+import type { Services, UserRow } from '../types.ts'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
 import test from 'node:test'
 
 test('UniGate requests use only the selected user key and preserve streaming frames', async (t) => {
-  const { UniGateClient } = await import('../unigate.ts')
+  const { UniGateClient } = await import('../services/unigate.ts')
   const seen: { auth?: string; path?: string }[] = []
   const upstream = createServer((req, res) => {
     seen.push({ auth: req.headers.authorization, path: req.url })
@@ -35,7 +35,7 @@ test('UniGate requests use only the selected user key and preserve streaming fra
 })
 
 test('billing responses expose usage numbers without API credentials', async (t) => {
-  const { billing } = await import('../auth.ts')
+  const { billing } = await import('../handlers/billing.ts')
   const raw = {
     '/me': { balance: 9.5, frozen_balance: 1 },
     '/usage': {
@@ -56,20 +56,22 @@ test('billing responses expose usage numbers without API credentials', async (t)
     },
     '/usage/stats': { total_actual_cost: 0.5 },
   }
-  const upstream = createServer((_req, res) => {
-    void billing(
+  const upstream = createServer((req, res) => {
+    void billing({
+      req,
       res,
-      { id: '1' } as UserRow,
-      {
+      url: new URL('/', 'http://127.0.0.1'),
+      params: {},
+      user: { id: '1' } as UserRow,
+      services: {
         unigate: {
           accessFor: async () => 'upstream-access-token',
           account: async (path: string) => raw[path.split('?')[0] as keyof typeof raw],
         },
         store: null,
         settings: { consoleUrl: 'https://unigate.example' },
-      } as unknown as CoreServices,
-      1
-    )
+      } as unknown as Services,
+    })
   }).listen(0, '127.0.0.1')
   t.after(() => upstream.close())
   await once(upstream, 'listening')

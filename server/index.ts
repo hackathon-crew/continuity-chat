@@ -1,152 +1,16 @@
-import type { Services, UserRow } from './types.ts'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
-import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
 import { startAgent } from './agent/queue.ts'
-import { routeAgent } from './agent/routes.ts'
-import { downloadConversationFile, importConversation } from './archive.ts'
-import { streamTurn } from './chat.ts'
-import { billing, finishLogin, logout, publicUser, startLogin } from './auth.ts'
 import { config, validateConfig, type Config } from './config.ts'
-import {
-  createConversation,
-  deleteConversation,
-  editConversation,
-  findConversation,
-  conversationSummary,
-  getTurns,
-  listConversations,
-  uuidPattern,
-} from './conversations.ts'
-import {
-  HttpError,
-  checkSameOrigin,
-  readBody,
-  readJson,
-  requireUser,
-  sendError,
-  sendJson,
-} from './http.ts'
-import { PostgresStore } from './store.ts'
-import { UniGateClient } from './unigate.ts'
-
-const openAIPaths = new Map([
-  ['/v1/models', 'GET'],
-  ['/v1/chat/completions', 'POST'],
-])
-
-async function proxyModel(
-  req: IncomingMessage,
-  res: ServerResponse,
-  url: URL,
-  user: UserRow,
-  { unigate, store }: Services
-) {
-  const method = openAIPaths.get(url.pathname)
-  if (method !== req.method) {
-    throw new HttpError(404, '模型接口不存在', 'not_found')
-  }
-  const body = method === 'POST' ? await readBody(req) : undefined
-  const controller = new AbortController()
-  res.once('close', () => controller.abort())
-  const upstream = await unigate.model(url.pathname.slice(3), store.secret(user, 'model_key'), {
-    method,
-    body,
-    signal: controller.signal,
-  })
-  res.writeHead(upstream.status, {
-    'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json',
-    'Cache-Control': 'no-store',
-    'X-Accel-Buffering': 'no',
-  })
-  if (upstream.body) {
-    await pipeline(Readable.fromWeb(upstream.body), res)
-  } else {
-    res.end()
-  }
-}
-
-async function api(req: IncomingMessage, res: ServerResponse, url: URL, services: Services) {
-  const { settings, store } = services
-  const method = req.method
-  const pathname = url.pathname
-  if (method !== 'GET' && method !== 'HEAD') {
-    checkSameOrigin(req, settings)
-  }
-
-  if (method === 'GET') {
-    if (pathname === '/api/health') {
-      return sendJson(res, 200, { ok: true })
-    }
-    if (pathname === '/api/auth/login') {
-      return startLogin(req, res, services)
-    }
-    if (pathname === '/api/auth/callback') {
-      return finishLogin(req, res, url, services)
-    }
-  }
-  if (method === 'POST' && pathname === '/api/auth/logout') {
-    return logout(req, res, services)
-  }
-  const user = await requireUser(req, store)
-  if (pathname === '/api/agent' || pathname.startsWith('/api/agent/')) {
-    return routeAgent(req, res, pathname, user, services)
-  }
-  if (pathname.startsWith('/v1/')) {
-    return proxyModel(req, res, url, user, services)
-  }
-  if (method === 'GET' && pathname === '/api/auth/me') {
-    return sendJson(res, 200, publicUser(user))
-  }
-  if (method === 'GET' && pathname === '/api/billing') {
-    const page = Math.max(1, Math.min(1000, Math.trunc(Number(url.searchParams.get('page')) || 1)))
-    return billing(res, user, services, page)
-  }
-
-  if (pathname === '/api/conversations') {
-    if (method === 'GET') {
-      return sendJson(res, 200, await listConversations(store.db, user.id))
-    }
-    if (method === 'POST') {
-      return sendJson(res, 201, await createConversation(store.db, user.id, await readJson(req)))
-    }
-  }
-
-  if (method === 'POST' && pathname === '/api/conversations/import') {
-    return importConversation(req, res, store, user)
-  }
-  const streamId = /^\/api\/conversations\/([^/]+)\/turns$/.exec(pathname)?.[1]
-  if (method === 'POST' && streamId && uuidPattern.test(streamId)) {
-    return streamTurn(req, res, streamId, user, services)
-  }
-  const file = /^\/api\/conversations\/([^/]+)\/files\/([^/]+)$/.exec(pathname)
-  if (method === 'GET' && file && uuidPattern.test(file[1])) {
-    return downloadConversationFile(res, store.db, user.id, file[1], decodeURIComponent(file[2]))
-  }
-
-  const id = /^\/api\/conversations\/([^/]+)$/.exec(pathname)?.[1]
-  if (id && uuidPattern.test(id)) {
-    if (method === 'GET') {
-      const row = await findConversation(store.db, user.id, id)
-      return sendJson(res, 200, {
-        ...conversationSummary(row),
-        turns: await getTurns(store.db, id),
-      })
-    }
-    if (method === 'PATCH') {
-      return sendJson(res, 200, await editConversation(store.db, user.id, id, await readJson(req)))
-    }
-    if (method === 'DELETE') {
-      await deleteConversation(store.db, user.id, id)
-      return sendJson(res, 200, { ok: true })
-    }
-  }
-  throw new HttpError(404, '请求的接口不存在', 'not_found')
-}
+import { PostgresStore } from './db/store.ts'
+import { HttpError, sendError } from './http.ts'
+import { routeApi } from './routes.ts'
+import { UniGateClient } from './services/unigate.ts'
+import type { Services } from './types.ts'
 
 const contentTypes: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -201,7 +65,7 @@ export async function createApplication(settings = config) {
     try {
       const url = new URL(req.url as string, settings.publicUrl)
       if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/v1/')) {
-        await api(req, res, url, services)
+        await routeApi(req, res, url, services)
       } else {
         await staticPage(req, res, url, settings)
       }

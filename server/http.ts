@@ -1,7 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Config } from './config.ts'
-import type { PostgresStore } from './store.ts'
+import { findSession } from './db/users.ts'
+import type { Db } from './types.ts'
 import { hashToken } from './security.ts'
+
+export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export class HttpError extends Error {
   declare readonly status: number
@@ -107,11 +110,40 @@ export function checkSameOrigin(req: IncomingMessage, settings: Pick<Config, 'pu
   }
 }
 
-export async function requireUser(req: IncomingMessage, store: Pick<PostgresStore, 'session'>) {
+export async function requireUser(req: IncomingMessage, db: Db) {
   const token = cookieValue(req, 'continuity_session')
-  const user = token && (await store.session(hashToken(token)))
+  const user = token && (await findSession(db, hashToken(token)))
   if (!user) {
     throw new HttpError(401, '请先登录 UniGate', 'unauthorized')
   }
   return user
+}
+
+export function matchRoute<T extends { method: string; path: string }>(
+  routes: readonly T[],
+  method: string | undefined,
+  pathname: string
+) {
+  const segments = pathname.split('/')
+  for (const route of routes) {
+    const pattern = route.path.split('/')
+    if (route.method !== method || pattern.length !== segments.length) {
+      continue
+    }
+    const params: Record<string, string> = {}
+    const matches = pattern.every((part, index) => {
+      const segment = segments[index]
+      if (!part.startsWith(':')) {
+        return part === segment
+      }
+      if (!segment || (part === ':id' && !uuidPattern.test(segment))) {
+        return false
+      }
+      params[part.slice(1)] = segment
+      return true
+    })
+    if (matches) {
+      return { route, params }
+    }
+  }
 }

@@ -1,6 +1,6 @@
 import type { ConversationToolStep, Memory } from '../../contract/types.ts'
 import type { Config } from '../config.ts'
-import type { PostgresStore } from '../store.ts'
+import type { PostgresStore } from '../db/store.ts'
 import type {
   DialogueMessage,
   ProfileRow,

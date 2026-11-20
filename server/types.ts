@@ -1,9 +1,10 @@
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Pool } from 'pg'
 import type { AgentItem, AgentJob, AgentProfile, Turn } from '../contract/types.ts'
 import type { startAgent } from './agent/queue.ts'
 import type { Config } from './config.ts'
-import type { PostgresStore } from './store.ts'
-import type { UniGateClient } from './unigate.ts'
+import type { PostgresStore } from './db/store.ts'
+import type { UniGateClient } from './services/unigate.ts'
 
 export type Db = Pick<Pool, 'query'>
 
@@ -67,6 +68,7 @@ export type ReminderSpec = {
 }
 export type TaskState = AgentJob['state']
 export type TaskSource = AgentJob['source']
+export type TicketSource = Exclude<TaskSource, 'legacy'>
 
 export type TaskRow = {
   id: string
@@ -90,3 +92,13 @@ type WithoutItemMetadata<Item> = Item extends AgentItem
   : never
 
 export type ItemPayload = WithoutItemMetadata<AgentItem>
+
+export type RouteRequest = {
+  req: IncomingMessage
+  res: ServerResponse
+  url: URL
+  services: Services
+  params: Record<string, string>
+}
+
+export type AuthenticatedRequest = RouteRequest & { user: UserRow }

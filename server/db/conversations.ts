@@ -1,9 +1,7 @@
-import type { ConversationSummary } from '../contract/types.ts'
-import type { ConversationRow, Db, StoredTurn } from './types.ts'
+import type { ConversationSummary } from '../../contract/types.ts'
+import type { ArchiveOrigin, ConversationRow, Db, StoredTurn } from '../types.ts'
 import { randomUUID } from 'node:crypto'
-import { HttpError } from './http.ts'
-
-export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { HttpError, uuidPattern } from '../http.ts'
 
 export const conversationSummary = (row: ConversationRow): ConversationSummary => ({
   id: row.id,
@@ -95,4 +93,67 @@ export async function deleteConversation(db: Db, userId: string, id: string) {
   if (!result.rowCount) {
     throw new HttpError(404, '对话不存在', 'not_found')
   }
+}
+
+export async function insertImportedConversation(
+  db: Db,
+  userId: string,
+  source: 'deepseek' | 'legacy',
+  archive: ArchiveOrigin,
+  model: unknown
+) {
+  const { rows } = await db.query<ConversationRow>(
+    `
+    INSERT INTO conversations (id, user_id, title, model, source, source_id, origin, created_at, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (user_id, source, source_id) DO NOTHING RETURNING *
+  `,
+    [
+      randomUUID(),
+      userId,
+      titleOf(archive.title),
+      modelOf(model),
+      source,
+      archive.id,
+      archive,
+      new Date(archive.createdAt),
+      new Date(archive.updatedAt),
+    ]
+  )
+  return rows[0]
+}
+
+export async function findImportedConversation(
+  db: Db,
+  userId: string,
+  source: 'deepseek' | 'legacy',
+  sourceId: string
+) {
+  const { rows } = await db.query<ConversationRow>(
+    'SELECT * FROM conversations WHERE user_id = $1 AND source = $2 AND source_id = $3',
+    [userId, source, sourceId]
+  )
+  return rows[0]
+}
+
+export async function insertTurn(db: Db, conversationId: string, turn: StoredTurn) {
+  await db.query('INSERT INTO chat_turns (conversation_id, id, payload) VALUES ($1,$2,$3)', [
+    conversationId,
+    turn.id,
+    turn,
+  ])
+}
+
+export async function updateTurn(db: Db, conversationId: string, turn: StoredTurn) {
+  await db.query('UPDATE chat_turns SET payload = $3 WHERE conversation_id = $1 AND id = $2', [
+    conversationId,
+    turn.id,
+    turn,
+  ])
+}
+
+export async function touchConversation(db: Db, id: string, model: string, title: string) {
+  await db.query(
+    'UPDATE conversations SET model = $2, title = $3, updated_at = now() WHERE id = $1',
+    [id, model, title]
+  )
 }

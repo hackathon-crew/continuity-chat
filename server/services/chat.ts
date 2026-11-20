@@ -1,23 +1,21 @@
-import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { ChatEvent, ConversationToolStep } from '../contract/types.ts'
-import type { PostgresStore } from './store.ts'
-import type {
-  AttachmentInput,
-  Db,
-  DialogueMessage,
-  DialoguePart,
-  Services,
-  StoredTurn,
-  UserRow,
-} from './types.ts'
-import { readJson, HttpError } from './http.ts'
-import { findConversation, getTurns, modelOf, titleOf, uuidPattern } from './conversations.ts'
-import { newAttachment } from './archive.ts'
-import { runModel } from './agent/model.ts'
-import { agentMemories, agentProfile } from './agent/repository.ts'
+import type { ChatEvent, ConversationToolStep } from '../../contract/types.ts'
+import { runModel } from '../agent/model.ts'
+import { agentMemories, agentProfile } from '../db/agent.ts'
+import { addConversationFile, conversationFiles } from '../db/conversation-files.ts'
+import {
+  findConversation,
+  getTurns,
+  insertTurn,
+  titleOf,
+  touchConversation,
+  updateTurn,
+} from '../db/conversations.ts'
+import type { PostgresStore } from '../db/store.ts'
+import { HttpError } from '../http.ts'
+import type { Db, DialogueMessage, DialoguePart, Services, StoredTurn, UserRow } from '../types.ts'
+import type { newAttachment } from './attachments.ts'
 
-const turnDurationMs = 180_000
-const turnRequestBytes = 16 * 1024 * 1024
+export const turnDurationMs = 180_000
 
 export async function conversationMessages(
   db: Db,
@@ -32,12 +30,13 @@ export async function conversationMessages(
     let content: DialogueMessage['content'] = turn.question
     const available = turn.files?.filter((file) => file.available) ?? []
     if (available.length) {
-      const { rows } = await db.query<{ id: string; media_type: string; content: Buffer }>(
-        'SELECT id, media_type, content FROM conversation_files WHERE conversation_id = $1 AND id = ANY($2::text[])',
-        [id, available.map((file) => file.id)]
+      const files = await conversationFiles(
+        db,
+        id,
+        available.map((file) => file.id)
       )
       const parts: DialoguePart[] = [{ type: 'text', text: turn.question }]
-      for (const file of rows) {
+      for (const file of files) {
         if (file.media_type.startsWith('image/')) {
           parts.push({
             type: 'image_url',
@@ -57,12 +56,6 @@ export async function conversationMessages(
     }
   }
   return messages
-}
-
-export function writeEvent(res: ServerResponse, event: ChatEvent) {
-  if (!res.destroyed) {
-    res.write(`${JSON.stringify(event)}\n`)
-  }
 }
 
 export async function beginTurn(
@@ -92,117 +85,66 @@ export async function beginTurn(
     }
     const context = replaceId ? turns.slice(0, -1) : turns
     for (const file of attachments) {
-      await db.query(
-        'INSERT INTO conversation_files (conversation_id,id,media_type,content) VALUES ($1,$2,$3,$4)',
-        [id, file.id, file.type, file.data]
-      )
+      await addConversationFile(db, id, file.id, file.type, file.data)
     }
     if (replaceId) {
       const replaced = latest as StoredTurn
       turn.question = replaced.question
       turn.files = replaced.files
-      await db.query('UPDATE chat_turns SET payload = $3 WHERE conversation_id = $1 AND id = $2', [
-        id,
-        turn.id,
-        turn,
-      ])
+      await updateTurn(db, id, turn)
     } else {
-      await db.query('INSERT INTO chat_turns (conversation_id,id,payload) VALUES ($1,$2,$3)', [
-        id,
-        turn.id,
-        turn,
-      ])
+      await insertTurn(db, id, turn)
     }
     const title =
       !turns.length && conversation.title === '新对话'
         ? titleOf(turn.question.slice(0, 24))
         : conversation.title
-    await db.query(
-      'UPDATE conversations SET model = $2, title = $3, updated_at = now() WHERE id = $1',
-      [id, model, title]
-    )
+    await touchConversation(db, id, model, title)
     return { title, context }
   })
 }
 
-export async function finishTurn(store: { db: Db }, id: string, turn: StoredTurn) {
-  await store.db.query(
-    'UPDATE chat_turns SET payload = $3 WHERE conversation_id = $1 AND id = $2',
-    [id, turn.id, turn]
-  )
-}
-
-type TurnInput = {
-  id: string
-  model: unknown
-  question?: unknown
-  replaceId?: string
-  files?: AttachmentInput[]
-  handoff?: unknown
-  search?: unknown
-}
-
-export async function streamTurn(
-  req: IncomingMessage,
-  res: ServerResponse,
-  id: string,
-  user: UserRow,
+type CompleteTurnInput = {
   services: Services
-) {
-  const { store, settings, agent } = services
-  const input = await readJson<TurnInput>(req, turnRequestBytes)
-  const question = typeof input.question === 'string' ? input.question.trim() : ''
-  const model = modelOf(input.model)
-  if (
-    !uuidPattern.test(input.id) ||
-    !model ||
-    (!question && !input.replaceId) ||
-    question.length > 8_000
-  ) {
-    throw new HttpError(400, '请选模型并输入消息', 'invalid_turn')
-  }
-  const attachments = Array.isArray(input.files) ? input.files.slice(0, 8).map(newAttachment) : []
-  const turn: StoredTurn = {
-    id: input.id,
-    question,
-    answer: '',
-    streaming: true,
-    startedAt: Date.now(),
-    files: attachments.map(({ id, name, type, available }) => ({ id, name, type, available })),
-  }
-  const { context, title } = await beginTurn(
-    store,
-    user.id,
-    id,
-    turn,
-    model,
-    attachments,
-    input.replaceId
-  )
-  const abort = new AbortController()
-  res.once('close', () => abort.abort())
-  const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(turnDurationMs)])
+  user: UserRow
+  id: string
+  turn: StoredTurn
+  context: StoredTurn[]
+  model: string
+  handoff: boolean
+  search: boolean
+  signal: AbortSignal
+  clientSignal: AbortSignal
+  emit: (event: ChatEvent) => void
+}
 
-  res.writeHead(200, {
-    'Content-Type': 'application/x-ndjson; charset=utf-8',
-    'Cache-Control': 'no-store',
-    'X-Accel-Buffering': 'no',
-  })
-  writeEvent(res, { type: 'start', title, turn })
-  if (input.handoff) {
+export async function completeTurn({
+  services,
+  user,
+  id,
+  turn,
+  context,
+  model,
+  handoff,
+  search,
+  signal,
+  clientSignal,
+  emit,
+}: CompleteTurnInput) {
+  const { store, settings, agent } = services
+  if (handoff) {
     try {
       const history = await conversationMessages(store.db, id, context)
       const [current] = await conversationMessages(store.db, id, [turn])
       const incoming = Array.isArray(current?.content) ? [...history, current] : history
       const receipt = await agent.handoff(user, id, turn, incoming, model)
-      writeEvent(res, { type: 'done', turn: receipt })
+      emit({ type: 'done', turn: receipt })
     } catch (error) {
       turn.streaming = false
       turn.error = error instanceof HttpError ? error.message : '任务还没有交给 Uni，可以重新发送。'
-      await finishTurn(store, id, turn)
-      writeEvent(res, { type: 'done', turn })
+      await updateTurn(store.db, id, turn)
+      emit({ type: 'done', turn })
     }
-    res.end()
     return
   }
   try {
@@ -220,25 +162,25 @@ export async function streamTurn(
       memories,
       messages,
       model,
-      search: input.search === true,
+      search,
       signal,
       onDelta: (delta) => {
         turn.answer += delta
-        writeEvent(res, { type: 'delta', delta })
+        emit({ type: 'delta', delta })
       },
       onStep: (step) => {
         steps.set(step.id, step)
         turn.steps = [...steps.values()]
-        writeEvent(res, { type: 'step', step })
+        emit({ type: 'step', step })
       },
     })
     turn.streaming = false
     await store.transaction(async (db) => {
       turn.artifacts = await agent.publishEffects(db, user, model, effects)
-      await finishTurn({ db }, id, turn)
+      await updateTurn(db, id, turn)
     })
   } catch (error) {
-    if (!abort.signal.aborted) {
+    if (!clientSignal.aborted) {
       turn.error =
         (error as { statusCode?: number }).statusCode === 402
           ? 'UniGate 余额不足，请充值后重新生成。'
@@ -247,8 +189,7 @@ export async function streamTurn(
             : '回复中断。可以从这条消息重新生成。'
     }
     turn.streaming = false
-    await finishTurn(store, id, turn)
+    await updateTurn(store.db, id, turn)
   }
-  writeEvent(res, { type: 'done', turn })
-  res.end()
+  emit({ type: 'done', turn })
 }

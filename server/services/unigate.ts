@@ -1,7 +1,8 @@
-import type { Config } from './config.ts'
-import type { PostgresStore } from './store.ts'
-import type { TokenSet, UserRow } from './types.ts'
-import { HttpError } from './http.ts'
+import type { Config } from '../config.ts'
+import type { PostgresStore } from '../db/store.ts'
+import { findUser, updateSealedTokens } from '../db/users.ts'
+import type { TokenSet, UserRow } from '../types.ts'
+import { HttpError } from '../http.ts'
 
 const clientId = 'unigate-chat'
 const oauthPath = '/api/v1/oauth/unigate-chat'
@@ -104,7 +105,7 @@ export class UniGateClient {
       return store.secret(user, 'oauth_access')
     }
     return store.transaction(async (db) => {
-      const current = await store.user(user.id, db, true)
+      const current = await findUser(db, user.id, true)
       if (+current.oauth_expires_at > Date.now() + tokenRefreshWindowMs) {
         return store.secret(current, 'oauth_access')
       }
@@ -112,7 +113,11 @@ export class UniGateClient {
         grant_type: 'refresh_token',
         refresh_token: store.secret(current, 'oauth_refresh'),
       })
-      await store.updateTokens(db, current.id, tokens)
+      await updateSealedTokens(db, current.id, {
+        access: store.seal(current.id, 'oauth_access', tokens.access),
+        refresh: store.seal(current.id, 'oauth_refresh', tokens.refresh),
+        expiresAt: tokens.expiresAt,
+      })
       return tokens.access
     })
   }

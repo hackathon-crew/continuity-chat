@@ -1,0 +1,35 @@
+[project]
+name = "chatbot"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "asyncpg>=0.30",
+    "cryptography>=43",
+    "fastapi>=0.115",
+    "httpx>=0.28",
+    "langchain-google-genai>=4.0",
+    "mem0ai>=2.2",
+    "qiniu>=7.18",
+    "sqlalchemy[asyncio]>=2.0",
+    "uvicorn>=0.32",
+]
+
+[project.scripts]
+chatbot = "chatbot.bootstrap.app:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["chatbot*"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

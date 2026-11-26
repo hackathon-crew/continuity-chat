@@ -1,0 +1,8 @@
+判断每条候选短句和列出的当前记忆是什么关系。只输出 JSON，不要解释。items 的顺序和数量与输入一致。
+
+{"items":[{"action":"new"},{"action":"repeat","memory_id":"已有编号"},{"action":"replace","memory_id":"已有编号"}]}
+
+new：没有同一件事，或拿不准。
+repeat：同一件事，旧说法仍然成立。说得更具体也算重复。
+replace：同一件事，旧说法不再成立。
+一条候选只对应一条记忆。memory_id 必须来自该条候选列出的记忆。

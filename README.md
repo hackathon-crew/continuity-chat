@@ -12,7 +12,7 @@ Install Node.js 22.12+ and pnpm, then run:
 
 ```sh
 git clone https://github.com/deepseek-ai/chat-demo.git
-cd chat-demo
+cd chat-demo/frontend
 pnpm install
 pnpm dev
 ```
@@ -25,7 +25,7 @@ To build the static site:
 pnpm build
 ```
 
-The output is written to `dist/`. Deploy it to a static web server or open `dist/index.html` directly. Opening the file directly requires browser support for storage on `file://` pages and an API service that permits their cross-origin requests.
+The output is written to `frontend/dist/`. Deploy it to a static web server or open `dist/index.html` directly. Opening the file directly requires browser support for storage on `file://` pages and an API service that permits their cross-origin requests.
 
 ## Features
 
@@ -39,7 +39,7 @@ The output is written to `dist/`. Deploy it to a static web server or open `dist
 
 Your API key and settings are stored in the browser's localStorage. Conversations and original attachments are stored in IndexedDB. Local data is isolated by browser profile and site origin. Sending messages, uploading attachments, and using speech features sends the relevant content to the configured API service.
 
-History import and export in Settings use ZIP archives. After confirmation and successful validation, importing replaces all local conversations and attachments. Exports include conversations and locally available original images, but exclude API keys, settings, and original non-image attachments. See the [history import/export documentation (Chinese)](src/services/chat/history/README.md) for the archive format and preservation details.
+History import and export in Settings use ZIP archives. After confirmation and successful validation, importing replaces all local conversations and attachments. Exports include conversations and locally available original images, but exclude API keys, settings, and original non-image attachments. See the [history import/export documentation (Chinese)](frontend/src/services/chat/history/README.md) for the archive format and preservation details.
 
 Settings → Data → Delete all chats clears all local conversations, original attachments, and unsent drafts after confirmation. It stops ongoing replies and returns to a new chat. Your API key and settings are preserved; files already uploaded to the API service are not deleted.
 
@@ -53,12 +53,12 @@ Settings → Data → Delete all chats clears all local conversations, original 
 | `pnpm lint`   | Lint with oxlint             |
 | `pnpm format` | Format with oxfmt            |
 
-[rspack.config.ts](rspack.config.ts) uses `https://api.deepseek.com` by default. Use `createConfig({ apiOrigin, devServer })` to customize the API origin and development server proxy.
+[frontend/rspack.config.ts](frontend/rspack.config.ts) uses `https://api.deepseek.com` by default. Use `createConfig({ apiOrigin, devServer })` to customize the API origin and development server proxy.
 
 Chat uses `deepseek-flash` by default through Anthropic-compatible Messages / Files APIs. Speech features use ASR / TTS endpoints. Requests include extensions for search, link reading, titles, and `latest_reminder`, so the configured service must support the corresponding capabilities. Supported attachment formats are determined by server-side validation.
 
 ```text
-src/
+frontend/src/
   app/                 Application layout, themes, and global styles
   components/          Chat, settings, Markdown, and other UI components
   i18n/                English and Chinese translations

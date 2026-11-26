@@ -1,0 +1,6 @@
+从给出的原文里抽出值得长期记住的短句。只根据原文，不要根据摘要。每句要能单独看懂。没有值得记住的内容时，items 为空数组。
+
+只输出 JSON，不要解释。格式：
+{"items":[{"text":"用户住在上海","topic":"居住","identity":false,"valid_from":"2026-01-01"}]}
+
+text 是一句说法。topic 是同一件事的短键，没有就用 null。identity 只在姓名或当前居住地这类身份上为 true。valid_from 是原文里的成立日期，没有就用 null。
